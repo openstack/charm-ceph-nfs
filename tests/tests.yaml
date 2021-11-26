@@ -1,0 +1,12 @@
+charm_name: ceph-nfs
+gate_bundles:
+  - focal-octopuc
+  - focal-pacific
+smoke_bundles:
+  - focal-octopus
+configure: []
+tests: []
+target_deploy_status:
+  ubuntu:
+    workload-status: active
+    workload-status-message: ''
