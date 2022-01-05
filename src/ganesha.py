@@ -11,7 +11,6 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
-# TODO: Add ACL with client IPs
 # TODO: Add ACL with kerberos
 GANESHA_EXPORT_TEMPLATE = """EXPORT {{
     # Each EXPORT must have a unique Export_Id.
@@ -35,7 +34,7 @@ GANESHA_EXPORT_TEMPLATE = """EXPORT {{
     SecType = "sys";
     CLIENT {{
         Access_Type = "rw";
-        Clients = 0.0.0.0;
+        Clients = {clients}
     }}
     # User id squashing, one of None, Root, All
     Squash = "None";
@@ -55,6 +54,7 @@ class GaneshaNfs(object):
         self.access_id = 'ganesha-{}'.format(self.name)
 
     def create_share(self):
+        """Create a CephFS Share and export it via Ganesha"""
         self.export_path = self._create_cephfs_share()
         export_id = self._get_next_export_id()
         export_template = GANESHA_EXPORT_TEMPLATE.format(
@@ -62,6 +62,7 @@ class GaneshaNfs(object):
             path=self.export_path,
             user_id=self.access_id,
             secret_key=self._ceph_auth_key(),
+            clients='0.0.0.0'
         )
         logging.debug("Export template:: \n{}".format(export_template))
         tmp_file = self._tmpfile(export_template)
@@ -69,11 +70,13 @@ class GaneshaNfs(object):
         self._ganesha_add_export(self.export_path, tmp_file.name)
 
     def _ganesha_add_export(self, export_path, tmp_path):
+        """Add a configured NFS export to Ganesha"""
         return self._dbus_send(
             'ExportMgr', 'AddExport',
             'string:{}'.format(tmp_path), 'string:EXPORT(Path={})'.format(export_path))
 
     def _dbus_send(self, section, action, *args):
+        """Send a command to Ganesha via Dbus"""
         cmd = [
             'dbus-send', '--print-reply', '--system', '--dest=org.ganesha.nfsd',
             '/org/ganesha/nfsd/{}'.format(section),
@@ -109,21 +112,34 @@ class GaneshaNfs(object):
             return False
 
     def _ceph_subvolume_command(self, *cmd):
+        """Run a ceph fs subvolume command"""
         return self._ceph_fs_command('subvolume', *cmd)
 
     def _ceph_fs_command(self, *cmd):
+        """Run a ceph fs command"""
         return self._ceph_command('fs', *cmd)
 
     def _ceph_auth_key(self):
+        """Retrieve the CephX key associated with this id
+
+        :returns: The access key
+        :rtype: str
+        """
         output = self._ceph_command(
             'auth', 'get', 'client.{}'.format(self.access_id), '--format=json')
         return json.loads(output.decode('UTF-8'))[0]['key']
 
     def _ceph_command(self, *cmd):
+        """Run a ceph command"""
         cmd = ["ceph", "--id", self.client_name, "--conf=/etc/ceph/ganesha/ceph.conf"] + [*cmd]
         return subprocess.check_output(cmd)
 
     def _get_next_export_id(self):
+        """Retrieve the next available export ID, and update the rados key
+
+        :returns: The export ID
+        :rtype: str
+        """
         next_id = int(self.rados_get(self.export_counter))
         file = self._tmpfile(next_id + 1)
         self.rados_put(self.export_counter, file.name)
@@ -136,6 +152,13 @@ class GaneshaNfs(object):
         return file
 
     def rados_get(self, name):
+        """Retrieve the content of the RADOS object with a given name
+        
+        :param name: Name of the RADOS object to retrieve
+
+        :returns: Contents of the RADOS object
+        :rtype: str
+        """
         cmd = [
             'rados', '-p', self.ceph_pool, '--id', self.client_name,
             'get', name, '/dev/stdout'
@@ -145,6 +168,13 @@ class GaneshaNfs(object):
         return output.decode('utf-8')
 
     def rados_put(self, name, source):
+        """Store the contents of the source file in a named RADOS object.
+        
+        :param name: Name of the RADOS object to retrieve
+        :param source: Path to a file to upload to RADOS.
+        
+        :returns: None
+        """
         cmd = [
             'rados', '-p', self.ceph_pool, '--id', self.client_name,
             'put', name, source
