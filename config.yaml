@@ -8,10 +8,25 @@
 # Learn more about config at: https://juju.is/docs/sdk/config
 
 options:
-  thing:
-    default: 🎁
-    description: A thing used by the charm.
+  source:
     type: string
+    default: ppa:chris.macnaughton/focal-ussuri
+    description: |
+      Optional configuration to support use of additional sources such as:
+        - ppa:myteam/ppa
+        - cloud:trusty-proposed/kilo
+        - http://my.archive.com/ubuntu main
+      The last option should be used in conjunction with the key configuration
+      option.
+      Note that a minimum ceph version of 0.48.2 is required for use with this
+      charm which is NOT provided by the packages in the main Ubuntu archive
+      for precise but is provided in the Ubuntu cloud archive.
+  key:
+    type: string
+    default:
+    description: |
+      Key ID to import to the apt keyring to support use with arbitary source
+      configuration from outside of Launchpad archives or PPA's.
   ceph-osd-replication-count:
     type: int
     default: 3
@@ -41,5 +56,5 @@ options:
     default:
     type: string
     description: |
-      Optionally specify an existing pool that shares should map to. Defaults
-      to the application's name.
+      Optionally specify an existing pool that Ganesha should store recovery
+      data into. Defaults to the application's name.

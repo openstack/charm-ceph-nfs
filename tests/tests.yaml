@@ -9,4 +9,4 @@ tests: []
 target_deploy_status:
   ubuntu:
     workload-status: active
-    workload-status-message: ''
+    workload-status-message-prefix: ''

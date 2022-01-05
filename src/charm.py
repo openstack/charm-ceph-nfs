@@ -15,9 +15,9 @@ develop a new k8s charm using the Operator Framework:
 import logging
 import os
 from pathlib import Path
+import socket
 import subprocess
 
-from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
 # from ops.model import ActiveStatus
@@ -25,6 +25,9 @@ from ops.main import main
 import charmhelpers.core.host as ch_host
 import charmhelpers.core.templating as ch_templating
 import interface_ceph_client.ceph_client as ceph_client
+import interface_ceph_nfs_peer
+# TODO: Add the below class functionaity to action / relations
+# from ganesha import GaneshaNfs
 
 import ops_openstack.adapters
 import ops_openstack.core
@@ -65,6 +68,32 @@ class CephClientAdapter(ops_openstack.adapters.OpenStackOperRelationAdapter):
         return self.relation.get_relation_data()['key']
 
 
+class CephNFSContext(object):
+    """Adapter for ceph NFS config."""
+
+    name = 'ceph_nfs'
+
+    def __init__(self, charm_instance):
+        self.charm_instance = charm_instance
+
+    @property
+    def pool_name(self):
+        """The name of the default rbd data pool to be used for shares.
+
+        :returns: Data pool name.
+        :rtype: str
+        """
+        return self.charm_instance.config_get('rbd-pool-name', self.charm_instance.app.name)
+
+    @property
+    def client_name(self):
+        return self.charm_instance.app.name
+
+    @property
+    def hostname(self):
+        return socket.gethostname()
+
+
 class CephNFSAdapters(
         ops_openstack.adapters.OpenStackRelationAdapters):
     """Collection of relation adapters."""
@@ -74,13 +103,14 @@ class CephNFSAdapters(
     }
 
 
-class CephNfsCharm(CharmBase):
+class CephNfsCharm(
+        ops_openstack.plugins.classes.BaseCephClientCharm):
     """Ceph NFS Base Charm."""
 
-    _stored = StoredState()
-    PACKAGES = ['nfs-ganesha', 'ceph-common']
+    PACKAGES = ['nfs-ganesha-ceph', 'nfs-ganesha-rados-grace', 'ceph-common']
 
     CEPH_CAPABILITIES = [
+        "mgr", "allow rw",
         "mds", "allow *",
         "osd", "allow rw",
         "mon", "allow r, "
@@ -89,14 +119,14 @@ class CephNfsCharm(CharmBase):
         "allow command \"auth get\", "
         "allow command \"auth get-or-create\""]
 
-    REQUIRED_RELATIONS = ['ceph-client', 'cluster']
+    REQUIRED_RELATIONS = ['ceph-client']
 
     CEPH_CONFIG_PATH = Path('/etc/ceph')
     GANESHA_CONFIG_PATH = Path('/etc/ganesha')
 
     CEPH_GANESHA_CONFIG_PATH = CEPH_CONFIG_PATH / 'ganesha'
-    CEPH_CONF = CEPH_GANESHA_CONFIG_PATH / 'ceph.conf'
-    GANESHA_KEYRING = CEPH_GANESHA_CONFIG_PATH / 'ceph.client.ceph-ganesha.keyring'
+    CEPH_CONF = CEPH_CONFIG_PATH / 'ceph.conf'
+    GANESHA_KEYRING = CEPH_GANESHA_CONFIG_PATH / 'ceph.keyring'
     GANESHA_CONF = GANESHA_CONFIG_PATH / 'ganesha.conf'
 
     SERVICES = ['nfs-ganesha']
@@ -114,13 +144,18 @@ class CephNfsCharm(CharmBase):
         logging.info("Using %s class", self.release)
         self._stored.set_default(
             is_started=False,
+            is_cluster_setup=False
         )
         self.ceph_client = ceph_client.CephClientRequires(
             self,
             'ceph-client')
+        self.peers = interface_ceph_nfs_peer.CephNfsPeers(
+            self,
+            'cluster')
         self.adapters = CephNFSAdapters(
-            (self.ceph_client,),
-            self)
+            (self.ceph_client, self.peers),
+            contexts=(CephNFSContext(self),),
+            charm_instance=self)
         self.framework.observe(
             self.ceph_client.on.broker_available,
             self.request_ceph_pool)
@@ -133,14 +168,20 @@ class CephNfsCharm(CharmBase):
         self.framework.observe(
             self.on.upgrade_charm,
             self.render_config)
+        self.framework.observe(
+            self.ceph_client.on.pools_available,
+            self.setup_ganesha),
+        self.framework.observe(
+            self.peers.on.pool_initialised,
+            self.on_pool_initialised)
 
-    def config_get(self, key):
+    def config_get(self, key, default=None):
         """Retrieve config option.
 
         :returns: Value of the corresponding config option or None.
         :rtype: Any
         """
-        return self.model.config.get(key)
+        return self.model.config.get(key, default)
 
     @property
     def pool_name(self):
@@ -149,11 +190,7 @@ class CephNfsCharm(CharmBase):
         :returns: Data pool name.
         :rtype: str
         """
-        if self.config_get('rbd-pool-name'):
-            pool_name = self.config_get('rbd-pool-name')
-        else:
-            pool_name = self.app.name
-        return pool_name
+        return self.config_get('rbd-pool-name', self.app.name)
 
     @property
     def client_name(self):
@@ -180,6 +217,7 @@ class CephNfsCharm(CharmBase):
         logging.info("Requesting replicated pool")
         self.ceph_client.create_replicated_pool(
             name=self.pool_name,
+            app_name='ganesha',
             replicas=replicas,
             weight=weight,
             **bcomp_kwargs)
@@ -200,7 +238,7 @@ class CephNfsCharm(CharmBase):
             event.defer()
             return
 
-        self.CEPH_GANESHA_PATH.mkdir(
+        self.CEPH_GANESHA_CONFIG_PATH.mkdir(
             exist_ok=True,
             mode=0o750)
 
@@ -223,16 +261,35 @@ class CephNfsCharm(CharmBase):
         self._stored.is_started = True
         self.update_status()
         logging.info("on_pools_available: status updated")
+        if not self._stored.is_cluster_setup:
+            subprocess.check_call([
+                'ganesha-rados-grace', '--userid', self.client_name,
+                '--cephconf', '/etc/ceph/ganesha/ceph.conf', '--pool', self.pool_name,
+                'add', socket.gethostname()])
+            self._stored.is_cluster_setup = True
 
-    # def custom_status_check(self):
-    #     """Custom update status checks."""
-    #     if ch_host.is_container():
-    #         return ops.model.BlockedStatus(
-    #             'Charm cannot be deployed into a container')
-    #     if self.peers.unit_count not in self.ALLOWED_UNIT_COUNTS:
-    #         return ops.model.BlockedStatus(
-    #             '{} is an invalid unit count'.format(self.peers.unit_count))
-    #     return ops.model.ActiveStatus()
+    def setup_ganesha(self, event):
+        if not self.model.unit.is_leader():
+            return
+        cmd = [
+            'rados', '-p', self.pool_name,
+            '-c', '/etc/ceph/ganesha/ceph.conf',
+            '--id', self.client_name,
+            'put', 'ganesha-export-index', '/dev/null'
+        ]
+        try:
+            subprocess.check_call(cmd)
+            self.peers.pool_initialised()
+        except subprocess.CalledProcessError:
+            logging.error("Failed to setup ganesha index object")
+            event.defer()
+
+    def on_pool_initialised(self, event):
+        try:
+            subprocess.check_call(['systemctl', 'restart', 'nfs-ganesha'])
+        except subprocess.CalledProcessError:
+            logging.error("Failed torestart nfs-ganesha")
+            event.defer()
 
 
 @ops_openstack.core.charm_class

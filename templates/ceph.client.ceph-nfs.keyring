@@ -1,3 +1,0 @@
-[client.ceph-nfs]
-	key = {{ ceph_client.key }}
-

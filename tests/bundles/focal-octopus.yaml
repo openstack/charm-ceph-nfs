@@ -20,8 +20,14 @@ applications:
     options:
       monitor-count: '3'
       expected-osd-count: 6
+  ceph-fs:
+    charm: cs:~openstack-charmers-next/ceph-fs
+    num_units: 1
+
 relations:
   - - 'ceph-mon:client'
     - 'ceph-nfs:ceph-client'
   - - 'ceph-osd:mon'
     - 'ceph-mon:osd'
+  - - 'ceph-fs'
+    - 'ceph-mon'
