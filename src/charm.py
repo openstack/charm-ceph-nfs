@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import tempfile
 
 from ops.framework import StoredState
 from ops.main import main
@@ -174,6 +175,9 @@ class CephNfsCharm(
         self.framework.observe(
             self.peers.on.pool_initialised,
             self.on_pool_initialised)
+        self.framework.observe(
+            self.peers.on.reload_nonce,
+            self.on_reload_nonce)
 
     def config_get(self, key, default=None):
         """Retrieve config option.
@@ -264,7 +268,7 @@ class CephNfsCharm(
         if not self._stored.is_cluster_setup:
             subprocess.check_call([
                 'ganesha-rados-grace', '--userid', self.client_name,
-                '--cephconf', '/etc/ceph/ganesha/ceph.conf', '--pool', self.pool_name,
+                '--cephconf', self.CEPH_CONF, '--pool', self.pool_name,
                 'add', socket.gethostname()])
             self._stored.is_cluster_setup = True
 
@@ -273,11 +277,21 @@ class CephNfsCharm(
             return
         cmd = [
             'rados', '-p', self.pool_name,
-            '-c', '/etc/ceph/ganesha/ceph.conf',
+            '-c', self.CEPH_CONF,
             '--id', self.client_name,
             'put', 'ganesha-export-index', '/dev/null'
         ]
         try:
+            subprocess.check_call(cmd)
+            counter = tempfile.NamedTemporaryFile('w+')
+            counter.write('1000')
+            counter.seek(0)
+            cmd = [
+                'rados', '-p', self.pool_name,
+                '-c', self.CEPH_CONF,
+                '--id', self.client_name,
+                'put', 'ganesha-export-counter', counter.name
+            ]
             subprocess.check_call(cmd)
             self.peers.pool_initialised()
         except subprocess.CalledProcessError:
@@ -290,6 +304,10 @@ class CephNfsCharm(
         except subprocess.CalledProcessError:
             logging.error("Failed torestart nfs-ganesha")
             event.defer()
+
+    def on_reload_nonce(self, _event):
+        logging.info("Reloading Ganesha after nonce triggered reload")
+        subprocess.call(['killall', '-HUP', 'ganesha.nfsd'])
 
 
 @ops_openstack.core.charm_class

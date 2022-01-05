@@ -34,7 +34,7 @@ GANESHA_EXPORT_TEMPLATE = """EXPORT {{
     SecType = "sys";
     CLIENT {{
         Access_Type = "rw";
-        Clients = {clients}
+        Clients = {clients};
     }}
     # User id squashing, one of None, Root, All
     Squash = "None";
@@ -64,10 +64,12 @@ class GaneshaNfs(object):
             secret_key=self._ceph_auth_key(),
             clients='0.0.0.0'
         )
-        logging.debug("Export template:: \n{}".format(export_template))
+        logging.debug("Export template::\n{}".format(export_template))
         tmp_file = self._tmpfile(export_template)
-        self.rados_put('ganesha-export-{}'.format(export_id), tmp_file.name)
+        self._rados_put('ganesha-export-{}'.format(export_id), tmp_file.name)
         self._ganesha_add_export(self.export_path, tmp_file.name)
+        self._add_share_to_index(export_id)
+        return self.export_path
 
     def _ganesha_add_export(self, export_path, tmp_path):
         """Add a configured NFS export to Ganesha"""
@@ -131,7 +133,7 @@ class GaneshaNfs(object):
 
     def _ceph_command(self, *cmd):
         """Run a ceph command"""
-        cmd = ["ceph", "--id", self.client_name, "--conf=/etc/ceph/ganesha/ceph.conf"] + [*cmd]
+        cmd = ["ceph", "--id", self.client_name, "--conf=/etc/ceph/ceph.conf"] + [*cmd]
         return subprocess.check_output(cmd)
 
     def _get_next_export_id(self):
@@ -140,9 +142,9 @@ class GaneshaNfs(object):
         :returns: The export ID
         :rtype: str
         """
-        next_id = int(self.rados_get(self.export_counter))
+        next_id = int(self._rados_get(self.export_counter))
         file = self._tmpfile(next_id + 1)
-        self.rados_put(self.export_counter, file.name)
+        self._rados_put(self.export_counter, file.name)
         return next_id
 
     def _tmpfile(self, value):
@@ -151,7 +153,7 @@ class GaneshaNfs(object):
         file.seek(0)
         return file
 
-    def rados_get(self, name):
+    def _rados_get(self, name):
         """Retrieve the content of the RADOS object with a given name
         
         :param name: Name of the RADOS object to retrieve
@@ -167,7 +169,7 @@ class GaneshaNfs(object):
         output = subprocess.check_output(cmd)
         return output.decode('utf-8')
 
-    def rados_put(self, name, source):
+    def _rados_put(self, name, source):
         """Store the contents of the source file in a named RADOS object.
         
         :param name: Name of the RADOS object to retrieve
@@ -181,3 +183,9 @@ class GaneshaNfs(object):
         ]
         logging.debug("About to call: {}".format(cmd))
         subprocess.check_call(cmd)
+
+    def _add_share_to_index(self, export_id):
+        index = self._rados_get(self.export_index)
+        index += '%url rados://{}/ganesha-export-{}'.format(self.ceph_pool, export_id)
+        tmpfile = self._tmpfile(index)
+        self._rados_put(self.export_index, tmpfile.name)
