@@ -2,6 +2,7 @@
 
 # import json
 import logging
+import os
 # import socket
 import uuid
 
@@ -19,9 +20,13 @@ class PoolInitialisedEvent(EventBase):
 class ReloadNonceEvent(EventBase):
     pass
 
+class DepartedEvent(EventBase):
+    pass
+
 class CephNfsPeerEvents(ObjectEvents):
     pool_initialised = EventSource(PoolInitialisedEvent)
     reload_nonce = EventSource(ReloadNonceEvent)
+    departing = EventSource(DepartedEvent)
 
 
 class CephNfsPeers(Object):
@@ -39,6 +44,9 @@ class CephNfsPeers(Object):
         self.framework.observe(
             charm.on[relation_name].relation_changed,
             self.on_changed)
+        self.framework.observe(
+            charm.on[relation_name].relation_departed,
+            self.on_departed)
 
     def on_changed(self, event):
         logging.info("CephNfsPeers on_changed")
@@ -48,6 +56,11 @@ class CephNfsPeers(Object):
         if self._stored.reload_nonce != self.reload_nonce:
             self.on.reload_nonce.emit()
         self._stored.reload_nonce = self.reload_nonce
+
+    def on_departed(self, event):
+        logging.warning("CephNfsPeers on_departed")
+        if this_unit.name == os.getenv('JUJU_DEPARTING_UNIT'):
+            self.on.departing.emit()
 
     def initialised_pool(self):
         logging.info("Setting pool initialised")

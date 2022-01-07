@@ -176,6 +176,9 @@ class CephNfsCharm(
             self.peers.on.pool_initialised,
             self.on_pool_initialised)
         self.framework.observe(
+            self.peers.on.departing,
+            self.on_departing)
+        self.framework.observe(
             self.peers.on.reload_nonce,
             self.on_reload_nonce)
         # Actions
@@ -269,6 +272,13 @@ class CephNfsCharm(
         self._stored.is_started = True
         self.update_status()
         logging.info("on_pools_available: status updated")
+
+    def on_departing(self, event):
+        subprocess.check_call([
+            'ganesha-rados-grace', '--userid', self.client_name,
+            '--cephconf', self.CEPH_CONF, '--pool', self.pool_name,
+            'remove', socket.gethostname()])
+        self._stored.is_cluster_setup = False
 
     def setup_ganesha(self, event):
         if not self._stored.is_cluster_setup:
