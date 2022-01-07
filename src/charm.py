@@ -325,8 +325,9 @@ class CephNfsCharm(
         if not self.model.unit.is_leader():
             event.fail("Share creation needs to be run from the application leader")
             return
+        share_size = event.params.get('size')
         client = GaneshaNfs(self.client_name, self.pool_name)
-        export_path = client.create_share()
+        export_path = client.create_share(size=share_size)
         self.peers.trigger_reload()
         event.set_results({"message": "Share created", "path": export_path, "ip": self.access_address()})
 

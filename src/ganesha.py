@@ -49,19 +49,26 @@ class GaneshaNfs(object):
 
     def __init__(self, client_name, ceph_pool):
         self.client_name = client_name
-        self.name = str(uuid.uuid4())
         self.ceph_pool = ceph_pool
-        self.access_id = 'ganesha-{}'.format(self.name)
 
-    def create_share(self):
-        """Create a CephFS Share and export it via Ganesha"""
-        self.export_path = self._create_cephfs_share()
+    def create_share(self, name=None, size=None):
+        """Create a CephFS Share and export it via Ganesha
+
+        :param name: String name of the share to create
+        :param size: Int size in gigabytes of the share to create
+        """
+        if name is None:
+            name = str(uuid.uuid4())
+        if size is not None:
+            size_in_bytes = size * 1024 * 1024
+        access_id = 'ganesha-{}'.format(name)
+        self.export_path = self._create_cephfs_share(name, size_in_bytes)
         export_id = self._get_next_export_id()
         export_template = GANESHA_EXPORT_TEMPLATE.format(
             id=export_id,
             path=self.export_path,
-            user_id=self.access_id,
-            secret_key=self._ceph_auth_key(),
+            user_id=access_id,
+            secret_key=self._ceph_auth_key(access_id),
             clients='0.0.0.0'
         )
         logging.debug("Export template::\n{}".format(export_template))
@@ -70,6 +77,15 @@ class GaneshaNfs(object):
         self._ganesha_add_export(self.export_path, tmp_file.name)
         self._add_share_to_index(export_id)
         return self.export_path
+
+    def list_shares(self):
+        pass
+
+    def get_share(self, id):
+        pass
+
+    def update_share(self, id):
+        pass
 
     def _ganesha_add_export(self, export_path, tmp_path):
         """Add a configured NFS export to Ganesha"""
@@ -86,28 +102,34 @@ class GaneshaNfs(object):
         logging.debug("About to call: {}".format(cmd))
         return subprocess.check_output(cmd)
 
-    def _create_cephfs_share(self):
+    def _create_cephfs_share(self, name, size_in_bytes=None):
         """Create an authorise a CephFS share.
+
+        :param name: String name of the share to create
+        :param size_in_bytes: Integer size in bytes of the size to create
 
         :returns: export path
         :rtype: union[str, bool]
         """
         try:
-            self._ceph_subvolume_command('create', 'ceph-fs', self.name)
+            if size_in_bytes is not None:
+                self._ceph_subvolume_command('create', 'ceph-fs', name, str(size_in_bytes))
+            else:
+                self._ceph_subvolume_command('create', 'ceph-fs', name)
         except subprocess.CalledProcessError:
             logging.error("failed to create subvolume")
             return False
 
         try:
             self._ceph_subvolume_command(
-                'authorize', 'ceph-fs', self.name,
-                'ganesha-{name}'.format(name=self.name))
+                'authorize', 'ceph-fs', name,
+                'ganesha-{name}'.format(name=name))
         except subprocess.CalledProcessError:
             logging.error("failed to authorize subvolume")
             return False
 
         try:
-            output = self._ceph_subvolume_command('getpath', 'ceph-fs', self.name)
+            output = self._ceph_subvolume_command('getpath', 'ceph-fs', name)
             return output.decode('utf-8').strip()
         except subprocess.CalledProcessError:
             logging.error("failed to get path")
@@ -121,14 +143,14 @@ class GaneshaNfs(object):
         """Run a ceph fs command"""
         return self._ceph_command('fs', *cmd)
 
-    def _ceph_auth_key(self):
+    def _ceph_auth_key(self, access_id):
         """Retrieve the CephX key associated with this id
 
         :returns: The access key
         :rtype: str
         """
         output = self._ceph_command(
-            'auth', 'get', 'client.{}'.format(self.access_id), '--format=json')
+            'auth', 'get', 'client.{}'.format(access_id), '--format=json')
         return json.loads(output.decode('UTF-8'))[0]['key']
 
     def _ceph_command(self, *cmd):
