@@ -58,3 +58,9 @@ options:
     description: |
       Optionally specify an existing pool that Ganesha should store recovery
       data into. Defaults to the application's name.
+  vip:
+    type: string
+    default:
+    description: |
+      VIP to associate with this service. This VIP will only be functional
+      with a relation to the hacluster charm.

@@ -8,3 +8,5 @@ create-share:
       description: IP Addresses to grant Read/Write access to
       type: string
       default: "0.0.0.0"
+    # TODO: CephFS Share name
+# TODO: Update, delete share

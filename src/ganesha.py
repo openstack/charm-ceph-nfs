@@ -134,7 +134,7 @@ class GaneshaNfs(object):
     def _ceph_command(self, *cmd):
         """Run a ceph command"""
         cmd = ["ceph", "--id", self.client_name, "--conf=/etc/ceph/ceph.conf"] + [*cmd]
-        return subprocess.check_output(cmd)
+        return subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
 
     def _get_next_export_id(self):
         """Retrieve the next available export ID, and update the rados key

@@ -28,7 +28,7 @@ import charmhelpers.core.templating as ch_templating
 import interface_ceph_client.ceph_client as ceph_client
 import interface_ceph_nfs_peer
 # TODO: Add the below class functionaity to action / relations
-# from ganesha import GaneshaNfs
+from ganesha import GaneshaNfs
 
 import ops_openstack.adapters
 import ops_openstack.core
@@ -178,6 +178,10 @@ class CephNfsCharm(
         self.framework.observe(
             self.peers.on.reload_nonce,
             self.on_reload_nonce)
+        # Actions
+        self.framework.observe(
+            self.on.create_share_action,
+            self.create_share_action)
 
     def config_get(self, key, default=None):
         """Retrieve config option.
@@ -265,14 +269,14 @@ class CephNfsCharm(
         self._stored.is_started = True
         self.update_status()
         logging.info("on_pools_available: status updated")
+
+    def setup_ganesha(self, event):
         if not self._stored.is_cluster_setup:
             subprocess.check_call([
                 'ganesha-rados-grace', '--userid', self.client_name,
                 '--cephconf', self.CEPH_CONF, '--pool', self.pool_name,
                 'add', socket.gethostname()])
             self._stored.is_cluster_setup = True
-
-    def setup_ganesha(self, event):
         if not self.model.unit.is_leader():
             return
         cmd = [
@@ -293,7 +297,7 @@ class CephNfsCharm(
                 'put', 'ganesha-export-counter', counter.name
             ]
             subprocess.check_call(cmd)
-            self.peers.pool_initialised()
+            self.peers.initialised_pool()
         except subprocess.CalledProcessError:
             logging.error("Failed to setup ganesha index object")
             event.defer()
@@ -309,6 +313,22 @@ class CephNfsCharm(
         logging.info("Reloading Ganesha after nonce triggered reload")
         subprocess.call(['killall', '-HUP', 'ganesha.nfsd'])
 
+    def access_address(self) -> str:
+        """Return the IP to advertise Ganesha on"""
+        binding = self.model.get_binding('public')
+        if self.model.get_relation('hacluster'):
+            return self.config_get('vip')
+        else:
+            return str(binding.network.ingress_address)
+
+    def create_share_action(self, event):
+        if not self.model.unit.is_leader():
+            event.fail("Share creation needs to be run from the application leader")
+            return
+        client = GaneshaNfs(self.client_name, self.pool_name)
+        export_path = client.create_share()
+        self.peers.trigger_reload()
+        event.set_results({"message": "Share created", "path": export_path, "ip": self.access_address()})
 
 @ops_openstack.core.charm_class
 class CephNFSCharmOcto(CephNfsCharm):

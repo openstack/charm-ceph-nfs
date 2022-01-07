@@ -45,18 +45,26 @@ class CephNfsPeers(Object):
         if self.pool_initialised == 'True' and not self._stored.pool_initialised:
             self.on.pool_initialised.emit()
         self._stored.pool_initialised = True
-        if self._stored.reload_nonce != self.reload_nonce():
+        if self._stored.reload_nonce != self.reload_nonce:
             self.on.reload_nonce.emit()
-        self._stored.reload_nonce = self.reload_nonce()
+        self._stored.reload_nonce = self.reload_nonce
 
-    def pool_initialised(self):
+    def initialised_pool(self):
         logging.info("Setting pool initialised")
         self.peer_rel.data[self.peer_rel.app]['pool_initialised'] = 'True'
         self.on.pool_initialised.emit()
 
     def trigger_reload(self):
-        self.peer_rel.data[self.peer_rel.app]['reload_nonce'] = uuid.uuid4()
+        self.peer_rel.data[self.peer_rel.app]['reload_nonce'] = str(uuid.uuid4())
         self.on.reload_nonce.emit()
+
+    @property
+    def pool_initialised(self):
+        return self.peer_rel.data[self.peer_rel.app].get('pool_initialised')
+
+    @property
+    def reload_nonce(self):
+        return self.peer_rel.data[self.peer_rel.app].get('reload_nonce')
 
     @property
     def peer_rel(self):
