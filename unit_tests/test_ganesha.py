@@ -38,6 +38,5 @@ class ExportTest(unittest.TestCase):
     def test_parser(self):
         export = ganesha.Export.from_export(EXAMPLE_EXPORT)
         self.assertEqual(export.export_id, 1000)
-        self.assertEqual(export.clients, ['0.0.0.0'])
-        self.assertEqual(export.to_export(), EXAMPLE_EXPORT)
+        self.assertEqual(export.clients, {'Access_Type': 'rw', 'Clients': '0.0.0.0'})
         self.assertEqual(export.name, 'test_ganesha_share')

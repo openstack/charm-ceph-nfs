@@ -4,8 +4,9 @@
 
 import json
 import logging
+import manager
 import subprocess
-from typing import List, Optional
+from typing import Dict, List, Optional
 import tempfile
 import uuid
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: Add ACL with kerberos
-GANESHA_EXPORT_TEMPLATE = """## This export is managed by the CephNFS charm ##
+GANESHA_EXPORT_TEMPLATE = """
 EXPORT {{
     # Each EXPORT must have a unique Export_Id.
     Export_Id = {id};
@@ -46,52 +47,34 @@ EXPORT {{
 
 class Export(object):
     """Object that encodes and decodes Ganesha export blocks"""
-    def __init__(self, export_id: int, path: str,
-                 user_id: str, access_key: str, clients: List[str],
-                 name: Optional[str] = None):
-        self.export_id = export_id
-        self.path = path
-        self.user_id = user_id
-        self.access_key = access_key
-        self.clients = clients
-        if '0.0.0.0/0' in self.clients:
-            self.clients[self.clients.index('0.0.0.0/0')] = '0.0.0.0'
+    def __init__(self, export_options: Optional[Dict] = None):
+        if export_options is None:
+            export_options = {}
+        self.export_options = export_options
         if self.path:
             self.name = self.path.split('/')[-2]
 
     def from_export(export: str) -> 'Export':
-        if not export.startswith('## This export is managed by the CephNFS charm ##'):
-            raise RuntimeError('This export is not managed by the CephNFS charm.')
-        clients = []
-        strip_chars = " ;'\""
-        for line in [line.strip() for line in export.splitlines()]:
-            if line.startswith('Export_Id'):
-                export_id = int(line.split('=', 1)[1].strip(strip_chars))
-            if line.startswith('Path'):
-                path = line.split('=', 1)[1].strip(strip_chars)
-            if line.startswith('User_Id'):
-                user_id = line.split('=', 1)[1].strip(strip_chars)
-            if line.startswith('Secret_Access_Key'):
-                access_key = line.split('=', 1)[1].strip(strip_chars)
-            if line.startswith('Clients'):
-                clients = line.split('=', 1)[1].strip(strip_chars)
-                clients = clients.split(', ')
-        return Export(
-            export_id=export_id,
-            path=path,
-            user_id=user_id,
-            access_key=access_key,
-            clients=clients
-        )
+        return Export(export_options=manager.parseconf(export))
 
     def to_export(self) -> str:
-        return GANESHA_EXPORT_TEMPLATE.format(
-            id=self.export_id,
-            path=self.path,
-            user_id=self.user_id,
-            secret_key=self.access_key,
-            clients=', '.join(self.clients)
-        )
+        return manager.mkconf(self.export_options)
+
+    @property
+    def export(self):
+        return self.export_options['EXPORT']
+
+    @property
+    def clients(self):
+        return self.export['CLIENT']
+
+    @property
+    def export_id(self):
+        return self.export['Export_Id']
+
+    @property
+    def path(self):
+        return self.export['Path']
 
 
 class GaneshaNfs(object):
