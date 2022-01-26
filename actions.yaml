@@ -6,15 +6,22 @@ create-share:
   params:
     allowed-ips:
       description: |
-        IP Addresses to grant Read/Write access to. the default allows
-        read/write access to any address that cana access this application.
+        Comma separated list of IP Addresses to grant Read/Write access to.
+        The default allows read/write access to any address that cana access
+        this application.
       type: string
-      default: "0.0.0.0"
+      default: "0.0.0.0/0"
     size:
       description: |
         Size in gigabytes of the share. When unset, the share will not be
         restricted in size.
       type: integer
       default:
-    # TODO: CephFS Share name
+    name:
+      description: |
+        Name of the share that will be exported.
+      type: string
+      default:
+list-shares:
+  description: List all shares that this application is managing
 # TODO: Update, delete share

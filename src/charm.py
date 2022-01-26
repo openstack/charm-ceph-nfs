@@ -185,6 +185,9 @@ class CephNfsCharm(
         self.framework.observe(
             self.on.create_share_action,
             self.create_share_action)
+        self.framework.observe(
+            self.on.list_shares_action,
+            self.list_shares_action)
 
     def config_get(self, key, default=None):
         """Retrieve config option.
@@ -254,6 +257,7 @@ class CephNfsCharm(
             mode=0o750)
 
         def daemon_reload_and_restart(service_name):
+            logging.debug("restarting {} after config change".format(service_name))
             subprocess.check_call(['systemctl', 'daemon-reload'])
             subprocess.check_call(['systemctl', 'restart', service_name])
 
@@ -274,6 +278,7 @@ class CephNfsCharm(
         logging.info("on_pools_available: status updated")
 
     def on_departing(self, event):
+        logging.debug("Removing this unit from Ganesha cluster")
         subprocess.check_call([
             'ganesha-rados-grace', '--userid', self.client_name,
             '--cephconf', self.CEPH_CONF, '--pool', self.pool_name,
@@ -296,10 +301,12 @@ class CephNfsCharm(
             'put', 'ganesha-export-index', '/dev/null'
         ]
         try:
+            logging.debug("Creating ganesha-export-index in Ceph")
             subprocess.check_call(cmd)
             counter = tempfile.NamedTemporaryFile('w+')
             counter.write('1000')
             counter.seek(0)
+            logging.debug("Creating ganesha-export-counter in Ceph")
             cmd = [
                 'rados', '-p', self.pool_name,
                 '-c', self.CEPH_CONF,
@@ -314,6 +321,7 @@ class CephNfsCharm(
 
     def on_pool_initialised(self, event):
         try:
+            logging.debug("Restarting Ganesha after pool initialisation")
             subprocess.check_call(['systemctl', 'restart', 'nfs-ganesha'])
         except subprocess.CalledProcessError:
             logging.error("Failed torestart nfs-ganesha")
@@ -336,10 +344,24 @@ class CephNfsCharm(
             event.fail("Share creation needs to be run from the application leader")
             return
         share_size = event.params.get('size')
+        name = event.params.get('name')
+        allowed_ips = event.params.get('allowed-ips')
+        allowed_ips = [ip.strip() for ip in allowed_ips.split(',')]
         client = GaneshaNfs(self.client_name, self.pool_name)
-        export_path = client.create_share(size=share_size)
+        export_path = client.create_share(size=share_size, name=name, access_ips=allowed_ips)
         self.peers.trigger_reload()
-        event.set_results({"message": "Share created", "path": export_path, "ip": self.access_address()})
+        event.set_results({
+            "message": "Share created",
+            "path": export_path,
+            "ip": self.access_address()})
+
+    def list_shares_action(self, event):
+        client = GaneshaNfs(self.client_name, self.pool_name)
+        exports = client.list_shares()
+        event.set_results({
+            "exports": [{"id": export.export_id, "name": export.name} for export in exports]
+        })
+
 
 @ops_openstack.core.charm_class
 class CephNFSCharmOcto(CephNfsCharm):

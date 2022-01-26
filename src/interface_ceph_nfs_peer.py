@@ -17,11 +17,14 @@ from ops.framework import (
 class PoolInitialisedEvent(EventBase):
     pass
 
+
 class ReloadNonceEvent(EventBase):
     pass
 
+
 class DepartedEvent(EventBase):
     pass
+
 
 class CephNfsPeerEvents(ObjectEvents):
     pool_initialised = EventSource(PoolInitialisedEvent)
@@ -50,16 +53,20 @@ class CephNfsPeers(Object):
 
     def on_changed(self, event):
         logging.info("CephNfsPeers on_changed")
+        logging.debug('pool_initialised: {}'.format(self.pool_initialised))
         if self.pool_initialised == 'True' and not self._stored.pool_initialised:
+            logging.info("emiting pool initialised")
             self.on.pool_initialised.emit()
-        self._stored.pool_initialised = True
+            self._stored.pool_initialised = True
+        logging.debug('reload_nonce: {}'.format(self.reload_nonce))
         if self._stored.reload_nonce != self.reload_nonce:
+            logging.info("emiting reload nonce")
             self.on.reload_nonce.emit()
         self._stored.reload_nonce = self.reload_nonce
 
     def on_departed(self, event):
         logging.warning("CephNfsPeers on_departed")
-        if this_unit.name == os.getenv('JUJU_DEPARTING_UNIT'):
+        if self.this_unit.name == os.getenv('JUJU_DEPARTING_UNIT'):
             self.on.departing.emit()
 
     def initialised_pool(self):

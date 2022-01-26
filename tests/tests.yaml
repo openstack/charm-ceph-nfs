@@ -5,7 +5,8 @@ gate_bundles:
 smoke_bundles:
   - focal-octopus
 configure: []
-tests: []
+tests:
+  - tests.nfs_ganesha.NfsGaneshaTest
 target_deploy_status:
   ubuntu:
     workload-status: active
