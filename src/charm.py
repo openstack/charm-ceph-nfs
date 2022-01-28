@@ -188,6 +188,10 @@ class CephNfsCharm(
         self.framework.observe(
             self.on.list_shares_action,
             self.list_shares_action)
+        self.framework.observe(
+            self.on.delete_share_action,
+            self.delete_share_action
+        )
 
     def config_get(self, key, default=None):
         """Retrieve config option.
@@ -360,6 +364,18 @@ class CephNfsCharm(
         exports = client.list_shares()
         event.set_results({
             "exports": [{"id": export.export_id, "name": export.name} for export in exports]
+        })
+
+    def delete_share_action(self, event):
+        if not self.model.unit.is_leader():
+            event.fail("Share creation needs to be run from the application leader")
+            return
+        client = GaneshaNfs(self.client_name, self.pool_name)
+        name = event.params.get('name')
+        client.delete_share(name)
+        self.peers.trigger_reload()
+        event.set_results({
+            "message": "Share deleted",
         })
 
 

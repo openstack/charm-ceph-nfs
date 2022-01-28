@@ -28,6 +28,7 @@ class NfsGaneshaTest(unittest.TestCase):
     mount_dir = '/mnt/test'
     share_protocol = 'nfs'
     mounts_share = False
+    created_share = None
 
     def tearDown(self):
         if self.mounts_share:
@@ -40,6 +41,13 @@ class NfsGaneshaTest(unittest.TestCase):
                     cmd='sudo umount /mnt/test && sudo rmdir /mnt/test')
             except subprocess.CalledProcessError:
                 logging.warning("Failed to cleanup mounts")
+        if self.created_share:
+            zaza.model.run_action_on_leader(
+                'ceph-nfs',
+                'delete-share',
+                action_params={
+                    'name': self.created_share,
+                })
 
     def _create_share(self, name: str, size: int = 10) -> Dict[str, str]:
         action = zaza.model.run_action_on_leader(
@@ -50,6 +58,7 @@ class NfsGaneshaTest(unittest.TestCase):
                 'size': size,
             })
         self.assertEqual(action.status, 'completed')
+        self.created_share = name
         results = action.results
         logging.debug("Action results: {}".format(results))
         return results

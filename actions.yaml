@@ -22,6 +22,17 @@ create-share:
         Name of the share that will be exported.
       type: string
       default:
+delete-share:
+  description: |
+    Delete a CephFS Backed NFS export. Note that this does not delete
+    the backing CephFS share.
+  params:
+    name:
+      description: |
+        Name of the share that will be deleted. If this share doesn't
+        exist then this action will have no effect.
+      type: string
+      default:
 list-shares:
   description: List all shares that this application is managing
 # TODO: Update, delete share

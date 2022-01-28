@@ -47,6 +47,9 @@ EXPORT {{
 
 class Export(object):
     """Object that encodes and decodes Ganesha export blocks"""
+
+    name = None
+
     def __init__(self, export_options: Optional[Dict] = None):
         if export_options is None:
             export_options = {}
@@ -104,16 +107,35 @@ class GaneshaNfs(object):
         if size is not None:
             size_in_bytes = size * 1024 * 1024
         if access_ips is None:
-            access_ips = ['0.0.0.0/0']
+            access_ips = ['0.0.0.0']
+        # Ganesha deals with networks just fine, except when the network is
+        # 0.0.0.0/0, then it has to be 0.0.0.0 which works as expected :-/
+        if '0.0.0.0/0' in access_ips:
+            access_ips[access_ips.index('0.0.0.0/0')] = '0.0.0.0'
+
         access_id = 'ganesha-{}'.format(name)
         self.export_path = self._create_cephfs_share(name, size_in_bytes)
         export_id = self._get_next_export_id()
         export = Export(
-            export_id=export_id,
-            path=self.export_path,
-            user_id=access_id,
-            access_key=self._ceph_auth_key(access_id),
-            clients=access_ips
+            {
+                'EXPORT': {
+                    'Export_Id': export_id,
+                    'Path': self.export_path,
+                    'FSAL': {
+                        'Name': 'Ceph',
+                        'User_Id': access_id,
+                        'Secret_Access_Key': self._ceph_auth_key(access_id)
+                    },
+                    'Pseudo': self.export_path,
+                    'Squash': 'None',
+                    'CLIENT': [
+                        {
+                            'Access_Type': 'RW',
+                            'Clients': ', '.join(access_ips),
+                        }
+                    ]
+                }
+            }
         )
         export_template = export.to_export()
         logging.debug("Export template::\n{}".format(export_template))
@@ -141,6 +163,19 @@ class GaneshaNfs(object):
                 logging.warning("Encountered an independently created export")
         return exports
 
+    def delete_share(self, name: str):
+        share = [share for share in self.list_shares() if share.name == name]
+        if share:
+            share = share[0]
+        else:
+            return
+        logging.info("About to remove export {} ({})".format(share.name, share.export_id))
+        self._ganesha_remove_export(share.export_id)
+        logging.debug("Removing export from index")
+        self._remove_share_from_index(share.export_id)
+        logging.debug("Removing export file from RADOS")
+        self._rados_rm('ganesha-export-{}'.format(share.export_id))
+
     def get_share(self, id):
         pass
 
@@ -152,6 +187,13 @@ class GaneshaNfs(object):
         return self._dbus_send(
             'ExportMgr', 'AddExport',
             'string:{}'.format(tmp_path), 'string:EXPORT(Path={})'.format(export_path))
+
+    def _ganesha_remove_export(self, share_id: int):
+        """Remove a configured NFS export from Ganesha"""
+        self._dbus_send(
+            'ExportMgr',
+            'RemoveExport',
+            "uint16:{}".format(share_id))
 
     def _dbus_send(self, section: str, action: str, *args):
         """Send a command to Ganesha via Dbus"""
@@ -266,8 +308,44 @@ class GaneshaNfs(object):
         logging.debug("About to call: {}".format(cmd))
         subprocess.check_call(cmd)
 
+    def _rados_rm(self, name: str):
+        """Remove a named RADOS object.
+
+        :param name: Name of the RADOS object to remove
+        :param source: Path to a file to upload to RADOS.
+
+        :returns: None
+        """
+        cmd = [
+            'rados', '-p', self.ceph_pool, '--id', self.client_name,
+            'rm', name
+        ]
+        logging.debug("About to call: {}".format(cmd))
+        subprocess.check_call(cmd)
+
     def _add_share_to_index(self, export_id: int):
-        index = self._rados_get(self.export_index)
-        index += '\n%url rados://{}/ganesha-export-{}'.format(self.ceph_pool, export_id)
-        tmpfile = self._tmpfile(index)
+        """Add an export RADOS object's URL to the RADOS URL index."""
+        index_data = self._rados_get(self.export_index)
+        url = '%url rados://{}/ganesha-export-{}'.format(self.ceph_pool, export_id)
+        rados_urls = index_data.split('\n')
+        if url not in rados_urls:
+            rados_urls.append(url)
+            tmpfile = self._tmpfile('\n'.join(rados_urls))
+            self._rados_put(self.export_index, tmpfile.name)
+
+    def _remove_share_from_index(self, export_id: int):
+        """Remove an export RADOS object's URL from the RADOS URL index."""
+        index_data = self._rados_get(self.export_index)
+        if not index_data:
+            return
+
+        unwanted_url = "%url rados://{0}/{1}".format(
+            self.ceph_pool,
+            'ganesha-export-{}'.format(export_id))
+        logging.debug("Looking for '{}' in index".format(unwanted_url))
+        rados_urls = index_data.split('\n')
+        logging.debug("Index URLs: {}".format(rados_urls))
+        index = [url.strip() for url in rados_urls if url != unwanted_url]
+        logging.debug("Index URLs without unwanted: {}".format(index))
+        tmpfile = self._tmpfile('\n'.join(index))
         self._rados_put(self.export_index, tmpfile.name)
