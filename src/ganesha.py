@@ -14,35 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: Add ACL with kerberos
-GANESHA_EXPORT_TEMPLATE = """
-EXPORT {{
-    # Each EXPORT must have a unique Export_Id.
-    Export_Id = {id};
-
-    # The directory in the exported file system this export
-    # is rooted on.
-    Path = '{path}';
-
-    # FSAL, Ganesha's module component
-    FSAL {{
-        # FSAL name
-        Name = "Ceph";
-        User_Id = "{user_id}";
-        Secret_Access_Key = "{secret_key}";
-    }}
-
-    # Path of export in the NFSv4 pseudo filesystem
-    Pseudo = '{path}';
-
-    SecType = "sys";
-    CLIENT {{
-        Access_Type = "rw";
-        Clients = {clients};
-    }}
-    # User id squashing, one of None, Root, All
-    Squash = "None";
-}}
-"""
 
 
 class Export(object):
@@ -53,9 +24,13 @@ class Export(object):
     def __init__(self, export_options: Optional[Dict] = None):
         if export_options is None:
             export_options = {}
+        if isinstance(export_options, Export):
+            raise RuntimeError('export_options must be a dictionary')
         self.export_options = export_options
         if self.path:
             self.name = self.path.split('/')[-2]
+        if not isinstance(self.export_options['EXPORT']['CLIENT'], list):
+            self.export_options['EXPORT']['CLIENT'] = [self.export_options['EXPORT']['CLIENT']]
 
     def from_export(export: str) -> 'Export':
         return Export(export_options=manager.parseconf(export))
@@ -68,16 +43,50 @@ class Export(object):
         return self.export_options['EXPORT']
 
     @property
-    def clients(self):
-        return self.export['CLIENT']
+    def clients(self) -> List[Dict[str, str]]:
+        return self.export_options['EXPORT']['CLIENT']
 
     @property
-    def export_id(self):
-        return self.export['Export_Id']
+    def clients_by_mode(self):
+        clients_by_mode = {'r': [], 'rw': []}
+        for client in self.clients:
+            if client['Access_Type'].lower() == 'r':
+                clients_by_mode['r'] += [s.strip() for s in client['Clients'].split(',')]
+            elif client['Access_Type'].lower() == 'rw':
+                clients_by_mode['rw'] += [s.strip() for s in client['Clients'].split(',')]
+            else:
+                raise RuntimeError("Invalid access type")
+        return clients_by_mode
 
     @property
-    def path(self):
-        return self.export['Path']
+    def export_id(self) -> int:
+        return int(self.export_options['EXPORT']['Export_Id'])
+
+    @property
+    def path(self) -> str:
+        return self.export_options['EXPORT']['Path']
+
+    def add_client(self, client: str, mode: str):
+        if mode not in ['r', 'rw']:
+            return 'Mode must be either r (read) or rw (read/write)'
+        clients_by_mode = self.clients_by_mode
+        if client not in clients_by_mode[mode.lower()]:
+            clients_by_mode[mode.lower()].append(client)
+        self.export_options['EXPORT']['CLIENT'] = []
+        for (mode, clients) in clients_by_mode.items():
+            if clients:
+                self.export_options['EXPORT']['CLIENT'].append(
+                    {'Access_Type': mode, 'Clients': ', '.join(clients)})
+
+    def remove_client(self, client: str):
+        clients_by_mode = self.clients_by_mode
+        for (mode, clients) in clients_by_mode.items():
+            clients_by_mode[mode] = [old_client for old_client in clients if old_client != client]
+        self.export_options['EXPORT']['CLIENT'] = []
+        for (mode, clients) in clients_by_mode.items():
+            if clients:
+                self.export_options['EXPORT']['CLIENT'].append(
+                    {'Access_Type': mode, 'Clients': ', '.join(clients)})
 
 
 class GaneshaNfs(object):
@@ -176,15 +185,39 @@ class GaneshaNfs(object):
         logging.debug("Removing export file from RADOS")
         self._rados_rm('ganesha-export-{}'.format(share.export_id))
 
-    def get_share(self, id):
-        pass
+    def grant_access(self, name: str, client: str, mode: str) -> Optional[str]:
+        share = self.get_share(name)
+        if share is None:
+            return 'Share does not exist'
+        share.add_client(client, mode)
+        export_template = share.to_export()
+        logging.debug("Export template::\n{}".format(export_template))
+        tmp_file = self._tmpfile(export_template)
+        self._rados_put('ganesha-export-{}'.format(share.export_id), tmp_file.name)
+        self._ganesha_update_export(share.export_id, tmp_file.name)
+
+    def revoke_access(self, name: str, client: str):
+        share = self.get_share(name)
+        if share is None:
+            return 'Share does not exist'
+        share.remove_client(client)
+        export_template = share.to_export()
+        logging.debug("Export template::\n{}".format(export_template))
+        tmp_file = self._tmpfile(export_template)
+        self._rados_put('ganesha-export-{}'.format(share.export_id), tmp_file.name)
+        self._ganesha_update_export(share.export_id, tmp_file.name)
+
+    def get_share(self, name: str) -> Optional[Export]:
+        share = [share for share in self.list_shares() if share.name == name]
+        if share:
+            return share[0]
 
     def update_share(self, id):
         pass
 
     def _ganesha_add_export(self, export_path: str, tmp_path: str):
         """Add a configured NFS export to Ganesha"""
-        return self._dbus_send(
+        self._dbus_send(
             'ExportMgr', 'AddExport',
             'string:{}'.format(tmp_path), 'string:EXPORT(Path={})'.format(export_path))
 
@@ -194,6 +227,12 @@ class GaneshaNfs(object):
             'ExportMgr',
             'RemoveExport',
             "uint16:{}".format(share_id))
+
+    def _ganesha_update_export(self, share_id: int, tmp_path: str):
+        """Update a configured NFS export in Ganesha"""
+        self._dbus_send(
+            'ExportMgr', 'UpdateExport',
+            'string:{}'.format(tmp_path), 'string:EXPORT(Export_Id={})'.format(share_id))
 
     def _dbus_send(self, section: str, action: str, *args):
         """Send a command to Ganesha via Dbus"""

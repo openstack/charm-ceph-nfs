@@ -2,12 +2,12 @@
 
 ## Description
 
-TODO: Describe your charm in a few paragraphs of Markdown
+CephNFS is a charm designed to enable management of NFS shares backed
+by CephFS. It supports Ceph Pacific and above.
 
 ## Usage
 
 TODO: Provide high-level usage, such as required config or relations
-
 
 ## Relations
 

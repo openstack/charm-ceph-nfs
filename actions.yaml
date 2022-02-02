@@ -22,6 +22,36 @@ create-share:
         Name of the share that will be exported.
       type: string
       default:
+grant-access:
+  description: |
+    Grant the specified client access to a share.
+  params:
+    name:
+      description: Name of the share
+      type: string
+      default:
+    client:
+      description: IP address or network to change access for
+      type: string
+      default:
+    mode:
+      description: Access mode to grant
+      type: string
+      default: "RW"
+
+revoke-access:
+  description: |
+    Revoke the specified client's access to a share.
+  params:
+    name:
+      description: Name of the share
+      type: string
+      default:
+    client:
+      description: IP address or network to change access for
+      type: string
+      default:
+
 delete-share:
   description: |
     Delete a CephFS Backed NFS export. Note that this does not delete

@@ -192,6 +192,14 @@ class CephNfsCharm(
             self.on.delete_share_action,
             self.delete_share_action
         )
+        self.framework.observe(
+            self.on.grant_access_action,
+            self.grant_access_action
+        )
+        self.framework.observe(
+            self.on.revoke_access_action,
+            self.revoke_access_action
+        )
 
     def config_get(self, key, default=None):
         """Retrieve config option.
@@ -304,24 +312,25 @@ class CephNfsCharm(
             '--id', self.client_name,
             'put', 'ganesha-export-index', '/dev/null'
         ]
-        try:
-            logging.debug("Creating ganesha-export-index in Ceph")
-            subprocess.check_call(cmd)
-            counter = tempfile.NamedTemporaryFile('w+')
-            counter.write('1000')
-            counter.seek(0)
-            logging.debug("Creating ganesha-export-counter in Ceph")
-            cmd = [
-                'rados', '-p', self.pool_name,
-                '-c', self.CEPH_CONF,
-                '--id', self.client_name,
-                'put', 'ganesha-export-counter', counter.name
-            ]
-            subprocess.check_call(cmd)
-            self.peers.initialised_pool()
-        except subprocess.CalledProcessError:
-            logging.error("Failed to setup ganesha index object")
-            event.defer()
+        if not self.peers.pool_initialised:
+            try:
+                logging.debug("Creating ganesha-export-index in Ceph")
+                subprocess.check_call(cmd)
+                counter = tempfile.NamedTemporaryFile('w+')
+                counter.write('1000')
+                counter.seek(0)
+                logging.debug("Creating ganesha-export-counter in Ceph")
+                cmd = [
+                    'rados', '-p', self.pool_name,
+                    '-c', self.CEPH_CONF,
+                    '--id', self.client_name,
+                    'put', 'ganesha-export-counter', counter.name
+                ]
+                subprocess.check_call(cmd)
+                self.peers.initialised_pool()
+            except subprocess.CalledProcessError:
+                logging.error("Failed to setup ganesha index object")
+                event.defer()
 
     def on_pool_initialised(self, event):
         try:
@@ -376,6 +385,41 @@ class CephNfsCharm(
         self.peers.trigger_reload()
         event.set_results({
             "message": "Share deleted",
+        })
+
+    def grant_access_action(self, event):
+        if not self.model.unit.is_leader():
+            event.fail("Share creation needs to be run from the application leader")
+            return
+        client = GaneshaNfs(self.client_name, self.pool_name)
+        name = event.params.get('name')
+        address = event.params.get('client')
+        mode = event.params.get('mode')
+        if mode not in ['r', 'rw']:
+            event.fail('Mode must be either r (read) or rw (read/write)')
+        res = client.grant_access(name, address, mode)
+        if res is not None:
+            event.fail(res)
+            return
+        self.peers.trigger_reload()
+        event.set_results({
+            "message": "Acess granted",
+        })
+
+    def revoke_access_action(self, event):
+        if not self.model.unit.is_leader():
+            event.fail("Share creation needs to be run from the application leader")
+            return
+        client = GaneshaNfs(self.client_name, self.pool_name)
+        name = event.params.get('name')
+        address = event.params.get('client')
+        res = client.revoke_access(name, address)
+        if res is not None:
+            event.fail(res)
+            return
+        self.peers.trigger_reload()
+        event.set_results({
+            "message": "Acess revoked",
         })
 
 

@@ -79,6 +79,7 @@ class NfsGaneshaTest(unittest.TestCase):
                 zaza.utilities.generic.run_via_ssh(
                     unit_name=unit_name,
                     cmd=ssh_cmd)
+        self.mounts_share = True
 
     def _install_dependencies(self, unit: str):
         logging.debug("About to install nfs-common on {}".format(unit))
@@ -112,7 +113,6 @@ class NfsGaneshaTest(unittest.TestCase):
         export_path = share['path']
         ip = share['ip']
         logging.info("Mounting share on ubuntu units")
-        self.mounts_share = True
         self._mount_share('ubuntu/0', ip, export_path)
         self._mount_share('ubuntu/1', ip, export_path)
         logging.info("writing to the share on ubuntu/0")

@@ -5,3 +5,4 @@ __pycache__
 lib/*
 !lib/README.txt
 *.charm
+.vscode/settings.json
