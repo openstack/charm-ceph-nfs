@@ -19,9 +19,8 @@ extra-bindings:
 requires:
   ceph-client:
     interface: ceph-client
-  hacluster:
-    interface: hacluster
-    scope: container
+  loadbalancer:
+    interface: openstack-loadbalancer
 peers:
   cluster:
     interface: ceph-nfs-peer

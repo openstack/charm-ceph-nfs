@@ -3,14 +3,13 @@
       - charm-unit-jobs
     check:
       jobs:
-      - octopus
-      - pacific
+      - focal-pacific
     vars:
       needs_charm_build: true
-      charm_build_name: ceph-iscsi
+      charm_build_name: ceph-nfs
       build_type: charmcraft
 - job:
-    name: focal-octopus
+    name: focal-pacific
     parent: func-target
     dependencies:
       - osci-lint
@@ -18,12 +17,5 @@
       - tox-py36
       - tox-py37
       - tox-py38
-    vars:
-      tox_extra_args: focal-octopus
-- job:
-    name: focal-pacific
-    parent: func-target
-    dependencies: &smoke-jobs
-      - focal-octopus
     vars:
       tox_extra_args: focal-pacific

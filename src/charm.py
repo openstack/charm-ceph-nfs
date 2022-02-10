@@ -27,6 +27,9 @@ import charmhelpers.core.host as ch_host
 import charmhelpers.core.templating as ch_templating
 import interface_ceph_client.ceph_client as ceph_client
 import interface_ceph_nfs_peer
+
+import interface_openstack_loadbalancer.loadbalancer as ops_lb_interface
+
 # TODO: Add the below class functionaity to action / relations
 from ganesha import GaneshaNfs
 
@@ -132,6 +135,9 @@ class CephNfsCharm(
 
     SERVICES = ['nfs-ganesha']
 
+    LB_SERVICE_NAME = "nfs-ganesha"
+    NFS_PORT = 2049
+
     RESTART_MAP = {
         str(GANESHA_CONF): SERVICES,
         str(CEPH_CONF): SERVICES,
@@ -153,6 +159,9 @@ class CephNfsCharm(
         self.peers = interface_ceph_nfs_peer.CephNfsPeers(
             self,
             'cluster')
+        self.ingress = ops_lb_interface.OSLoadbalancerRequires(
+            self,
+            'loadbalancer')
         self.adapters = CephNFSAdapters(
             (self.ceph_client, self.peers),
             contexts=(CephNFSContext(self),),
@@ -181,6 +190,12 @@ class CephNfsCharm(
         self.framework.observe(
             self.peers.on.reload_nonce,
             self.on_reload_nonce)
+        self.framework.observe(
+            self.ingress.on.lb_relation_ready,
+            self._request_loadbalancer)
+        self.framework.observe(
+            self.ingress.on.lb_configured,
+            self.render_config)
         # Actions
         self.framework.observe(
             self.on.create_share_action,
@@ -200,6 +215,20 @@ class CephNfsCharm(
             self.on.revoke_access_action,
             self.revoke_access_action
         )
+
+    def _request_loadbalancer(self, _) -> None:
+        """Send request to create loadbalancer"""
+        self.ingress.request_loadbalancer(
+            self.LB_SERVICE_NAME,
+            self.NFS_PORT,
+            self.NFS_PORT,
+            self._get_bind_ip(),
+            'tcp')
+
+    def _get_bind_ip(self) -> str:
+        """Return the IP to bind the dashboard to"""
+        binding = self.model.get_binding('public')
+        return str(binding.network.ingress_address)
 
     def config_get(self, key, default=None):
         """Retrieve config option.
@@ -347,10 +376,16 @@ class CephNfsCharm(
     def access_address(self) -> str:
         """Return the IP to advertise Ganesha on"""
         binding = self.model.get_binding('public')
-        if self.model.get_relation('hacluster'):
-            return self.config_get('vip')
+        ingress_address = str(binding.network.ingress_address)
+        if self.ingress.relations:
+            lb_response = self.ingress.get_frontend_data()
+            if lb_response:
+                lb_config = lb_response[self.LB_SERVICE_NAME]
+                return [i for d in lb_config.values() for i in d['ip']][0]
+            else:
+                return ingress_address
         else:
-            return str(binding.network.ingress_address)
+            return ingress_address
 
     def create_share_action(self, event):
         if not self.model.unit.is_leader():
