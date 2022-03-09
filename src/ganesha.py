@@ -123,7 +123,10 @@ class GaneshaNfs(object):
             access_ips[access_ips.index('0.0.0.0/0')] = '0.0.0.0'
 
         access_id = 'ganesha-{}'.format(name)
-        self.export_path = self._create_cephfs_share(name, size_in_bytes)
+        path = self._create_cephfs_share(name, size_in_bytes)
+        if not path:
+            return
+        self.export_path = path
         export_id = self._get_next_export_id()
         export = Export(
             {

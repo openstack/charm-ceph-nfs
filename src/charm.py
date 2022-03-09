@@ -397,6 +397,9 @@ class CephNfsCharm(
         allowed_ips = [ip.strip() for ip in allowed_ips.split(',')]
         client = GaneshaNfs(self.client_name, self.pool_name)
         export_path = client.create_share(size=share_size, name=name, access_ips=allowed_ips)
+        if not export_path:
+            event.fail("Failed to create share, check the log for more details")
+            return
         self.peers.trigger_reload()
         event.set_results({
             "message": "Share created",
@@ -430,8 +433,8 @@ class CephNfsCharm(
         name = event.params.get('name')
         address = event.params.get('client')
         mode = event.params.get('mode')
-        if mode not in ['r', 'rw']:
-            event.fail('Mode must be either r (read) or rw (read/write)')
+        if mode not in ['R', 'RW']:
+            event.fail('Mode must be either R (read) or RW (read/write)')
         res = client.grant_access(name, address, mode)
         if res is not None:
             event.fail(res)
@@ -459,8 +462,8 @@ class CephNfsCharm(
 
 
 @ops_openstack.core.charm_class
-class CephNFSCharmOcto(CephNfsCharm):
-    """Ceph iSCSI Charm for Octopus."""
+class CephNFSCharmPacific(CephNfsCharm):
+    """Ceph iSCSI Charm for Pacific."""
 
     _stored = StoredState()
     release = 'octopus'

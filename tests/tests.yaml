@@ -1,9 +1,9 @@
 charm_name: ceph-nfs
 gate_bundles:
-  - focal-octopuc
+  - focal-quincy
   - focal-pacific
 smoke_bundles:
-  - focal-octopus
+  - focal-pacific
 configure: []
 tests:
   - tests.nfs_ganesha.NfsGaneshaTest

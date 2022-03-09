@@ -17,6 +17,7 @@
 import logging
 import subprocess
 import tenacity
+import time
 from typing import Dict
 import unittest
 import yaml
@@ -49,13 +50,15 @@ class NfsGaneshaTest(unittest.TestCase):
                     'name': self.created_share,
                 })
 
-    def _create_share(self, name: str, size: int = 10) -> Dict[str, str]:
+    def _create_share(self, name: str, size: int = 10,
+                      access_ip: str = '0.0.0.0') -> Dict[str, str]:
         action = zaza.model.run_action_on_leader(
             'ceph-nfs',
             'create-share',
             action_params={
                 'name': name,
                 'size': size,
+                'allowed-ips': access_ip,
             })
         self.assertEqual(action.status, 'completed')
         self.created_share = name
@@ -63,7 +66,18 @@ class NfsGaneshaTest(unittest.TestCase):
         logging.debug("Action results: {}".format(results))
         return results
 
-    def _mount_share(self, unit_name: str, share_ip: str, export_path: str):
+    def _grant_access(self, share_name: str, access_ip: str, access_mode: str):
+        action = zaza.model.run_action_on_leader(
+            'ceph-nfs',
+            'grant-access',
+            action_params={
+                'name': share_name,
+                'client': access_ip,
+                'mode': access_mode,
+            })
+        self.assertEqual(action.status, 'completed')
+
+    def _mount_share(self, unit_name: str, share_ip: str, export_path: str, retry: bool = True):
         ssh_cmd = (
             'sudo mkdir -p {0} && '
             'sudo mount -t {1} -o nfsvers=4.1,proto=tcp {2}:{3} {0}'.format(
@@ -71,14 +85,18 @@ class NfsGaneshaTest(unittest.TestCase):
                 self.share_protocol,
                 share_ip,
                 export_path))
-
-        for attempt in tenacity.Retrying(
-                stop=tenacity.stop_after_attempt(5),
-                wait=tenacity.wait_exponential(multiplier=3, min=2, max=10)):
-            with attempt:
-                zaza.utilities.generic.run_via_ssh(
-                    unit_name=unit_name,
-                    cmd=ssh_cmd)
+        if retry:
+            for attempt in tenacity.Retrying(
+                    stop=tenacity.stop_after_attempt(5),
+                    wait=tenacity.wait_exponential(multiplier=3, min=2, max=10)):
+                with attempt:
+                    zaza.utilities.generic.run_via_ssh(
+                        unit_name=unit_name,
+                        cmd=ssh_cmd)
+        else:
+            zaza.utilities.generic.run_via_ssh(
+                unit_name=unit_name,
+                cmd=ssh_cmd)
         self.mounts_share = True
 
     def _install_dependencies(self, unit: str):
@@ -106,17 +124,33 @@ class NfsGaneshaTest(unittest.TestCase):
         self.assertEqual('test\r\n', output)
 
     def test_create_share(self):
+        logging.info("Creating a share")
+        # Todo - enable ACL testing
+        # ubuntu_0_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/0'))
+        # ubuntu_1_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/1'))
+        # share = self._create_share('test_ganesha_share', access_ip=ubuntu_0_ip)
+        share = self._create_share('test_ganesha_share')
+        zaza.model.wait_for_application_states(states={
+            'ubuntu': {
+                "workload-status-message-regex": "^$",
+            }
+        })
         for unit in ['0', '1']:
             self._install_dependencies('ubuntu/{}'.format(unit))
-        logging.info("Creating a share")
-        share = self._create_share('test_ganesha_share')
         export_path = share['path']
         ip = share['ip']
         logging.info("Mounting share on ubuntu units")
         self._mount_share('ubuntu/0', ip, export_path)
-        self._mount_share('ubuntu/1', ip, export_path)
         logging.info("writing to the share on ubuntu/0")
         self._write_testing_file_on_instance('ubuntu/0')
+        # Todo - enable ACL testing
+        # try:
+        #     self._mount_share('ubuntu/1', ip, export_path, retry=False)
+        #     self.fail('Mounting should not have succeeded')
+        # except:  # noqa: E722
+        #     pass
+        # self._grant_access('test_ganesha_share', access_ip=ubuntu_1_ip, access_mode='RW')
+        self._mount_share('ubuntu/1', ip, export_path)
         logging.info("reading from the share on ubuntu/1")
         self._verify_testing_file_on_instance('ubuntu/1')
 
