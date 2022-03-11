@@ -26,6 +26,16 @@ used:
 This command has granted read-only access to the named share to a specific
 address: `192.168.0.1`.
 
+## High Availability
+
+To gain high availability for NFS shares, it is necessary to scale ceph-nfs and relate it to a loadbalancer charm:
+
+    juju add-unit ceph-nfs
+    juju deploy openstack-loadbalancer loadbalancer --config vip=10.5.0.100
+    juju add-relation ceph-nfs loadbalancer
+
+Once everything settles, your shares will be accessible over the loadbalancer's vip (`10.5.0.100` in this example), and connections will load-balance across backends.
+
 ## Relations
 
 TODO: Provide any relations which are provided or required by your charm
