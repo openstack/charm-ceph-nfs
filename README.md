@@ -26,6 +26,10 @@ used:
 This command has granted read-only access to the named share to a specific
 address: `192.168.0.1`.
 
+It is possible to delete the created share with:
+
+    juju run-action --wait ceph-nfs/0 delete-share name=test-share
+
 ## High Availability
 
 To gain high availability for NFS shares, it is necessary to scale ceph-nfs and relate it to a loadbalancer charm:
