@@ -34,10 +34,6 @@ grant-access:
       description: IP address or network to change access for
       type: string
       default:
-    mode:
-      description: Access mode to grant
-      type: string
-      default: "RW"
 
 revoke-access:
   description: |

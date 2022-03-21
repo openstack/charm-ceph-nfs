@@ -66,15 +66,17 @@ class Export(object):
     def path(self) -> str:
         return self.export_options['EXPORT']['Path']
 
-    def add_client(self, client: str, mode: str):
-        if mode not in ['r', 'rw']:
-            return 'Mode must be either r (read) or rw (read/write)'
+    def add_client(self, client: str):
+        mode = "rw"
         clients_by_mode = self.clients_by_mode
+        logging.info(f"About to add {client} to {clients_by_mode}")
         if client not in clients_by_mode[mode.lower()]:
             clients_by_mode[mode.lower()].append(client)
+        logging.info(f"new clients_by_mode: to {clients_by_mode}")
         self.export_options['EXPORT']['CLIENT'] = []
         for (mode, clients) in clients_by_mode.items():
             if clients:
+                logging.info(f"Adding {clients} to self.export_options")
                 self.export_options['EXPORT']['CLIENT'].append(
                     {'Access_Type': mode, 'Clients': ', '.join(clients)})
 
@@ -188,11 +190,11 @@ class GaneshaNfs(object):
         logging.debug("Removing export file from RADOS")
         self._rados_rm('ganesha-export-{}'.format(share.export_id))
 
-    def grant_access(self, name: str, client: str, mode: str) -> Optional[str]:
+    def grant_access(self, name: str, client: str) -> Optional[str]:
         share = self.get_share(name)
         if share is None:
             return 'Share does not exist'
-        share.add_client(client, mode)
+        share.add_client(client)
         export_template = share.to_export()
         logging.debug("Export template::\n{}".format(export_template))
         tmp_file = self._tmpfile(export_template)

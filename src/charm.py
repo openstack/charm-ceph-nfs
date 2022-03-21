@@ -12,6 +12,7 @@ develop a new k8s charm using the Operator Framework:
     https://discourse.charmhub.io/t/4208
 """
 
+import ipaddress
 import logging
 import os
 from pathlib import Path
@@ -28,7 +29,7 @@ import charmhelpers.core.templating as ch_templating
 import interface_ceph_client.ceph_client as ceph_client
 import interface_ceph_nfs_peer
 
-import interface_openstack_loadbalancer.loadbalancer as ops_lb_interface
+import interface_hacluster.ops_ha_interface as ops_ha_interface
 
 # TODO: Add the below class functionaity to action / relations
 from ganesha import GaneshaNfs
@@ -159,9 +160,8 @@ class CephNfsCharm(
         self.peers = interface_ceph_nfs_peer.CephNfsPeers(
             self,
             'cluster')
-        self.ingress = ops_lb_interface.OSLoadbalancerRequires(
-            self,
-            'loadbalancer')
+        self.ha = ops_ha_interface.HAServiceRequires(self, 'ha')
+
         self.adapters = CephNFSAdapters(
             (self.ceph_client, self.peers),
             contexts=(CephNFSContext(self),),
@@ -191,11 +191,8 @@ class CephNfsCharm(
             self.peers.on.reload_nonce,
             self.on_reload_nonce)
         self.framework.observe(
-            self.ingress.on.lb_relation_ready,
-            self._request_loadbalancer)
-        self.framework.observe(
-            self.ingress.on.lb_configured,
-            self.render_config)
+            self.ha.on.ha_ready,
+            self._configure_hacluster)
         # Actions
         self.framework.observe(
             self.on.create_share_action,
@@ -215,15 +212,6 @@ class CephNfsCharm(
             self.on.revoke_access_action,
             self.revoke_access_action
         )
-
-    def _request_loadbalancer(self, _) -> None:
-        """Send request to create loadbalancer"""
-        self.ingress.request_loadbalancer(
-            self.LB_SERVICE_NAME,
-            self.NFS_PORT,
-            self.NFS_PORT,
-            self._get_bind_ip(),
-            'tcp')
 
     def _get_bind_ip(self) -> str:
         """Return the IP to bind the dashboard to"""
@@ -361,6 +349,18 @@ class CephNfsCharm(
                 logging.error("Failed to setup ganesha index object")
                 event.defer()
 
+    def _configure_hacluster(self, _):
+        vip_config = self.config.get('vip')
+        if not vip_config:
+            logging.warn("Cannot setup vips, vip config missing")
+            return
+        for vip in vip_config.split():
+            self.ha.add_vip('vip', vip)
+        self.ha.add_systemd_service('ganesha-systemd', 'nfs-ganesha')
+        self.ha.add_colocation(
+            self.model.app.name, 'ALWAYS', ['ganesha-vip', 'ganesha-systemd'])
+        self.ha.bind_resources()
+
     def on_pool_initialised(self, event):
         try:
             logging.debug("Restarting Ganesha after pool initialisation")
@@ -373,19 +373,34 @@ class CephNfsCharm(
         logging.info("Reloading Ganesha after nonce triggered reload")
         subprocess.call(['killall', '-HUP', 'ganesha.nfsd'])
 
+    def _get_binding_subnet_map(self):
+        bindings = {}
+        for binding_name in self.meta.extra_bindings.keys():
+            network = self.model.get_binding(binding_name).network
+            bindings[binding_name] = [i.subnet for i in network.interfaces]
+        return bindings
+
+    @property
+    def vips(self):
+        return self.config.get('vip').split()
+
+    def _get_space_vip_mapping(self):
+        bindings = {}
+        for binding_name, subnets in self._get_binding_subnet_map().items():
+            bindings[binding_name] = [
+                vip
+                for subnet in subnets
+                for vip in self.vips
+                if ipaddress.ip_address(vip) in subnet]
+        return bindings
+
     def access_address(self) -> str:
         """Return the IP to advertise Ganesha on"""
         binding = self.model.get_binding('public')
         ingress_address = str(binding.network.ingress_address)
-        if self.ingress.relations:
-            lb_response = self.ingress.get_frontend_data()
-            if lb_response:
-                lb_config = lb_response[self.LB_SERVICE_NAME]
-                return [i for d in lb_config.values() for i in d['ip']][0]
-            else:
-                return ingress_address
-        else:
-            return ingress_address
+        # Try to get the VIP for the public binding, fall back to ingress on it
+        return self._get_space_vip_mapping().get(
+            'public', [ingress_address])[0]
 
     def create_share_action(self, event):
         if not self.model.unit.is_leader():
@@ -432,10 +447,7 @@ class CephNfsCharm(
         client = GaneshaNfs(self.client_name, self.pool_name)
         name = event.params.get('name')
         address = event.params.get('client')
-        mode = event.params.get('mode')
-        if mode not in ['R', 'RW']:
-            event.fail('Mode must be either R (read) or RW (read/write)')
-        res = client.grant_access(name, address, mode)
+        res = client.grant_access(name, address)
         if res is not None:
             event.fail(res)
             return

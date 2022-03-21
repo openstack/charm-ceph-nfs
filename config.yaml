@@ -62,5 +62,7 @@ options:
     type: string
     default:
     description: |
-      VIP to associate with this service. This VIP will only be functional
-      with a relation to the hacluster charm.
+      Virtual IP(s) to use to front API services in HA configuration.
+      .
+      If multiple networks are being used, a VIP should be provided for each
+      network, separated by spaces.

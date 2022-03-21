@@ -66,18 +66,18 @@ class NfsGaneshaTest(unittest.TestCase):
         logging.debug("Action results: {}".format(results))
         return results
 
-    def _grant_access(self, share_name: str, access_ip: str, access_mode: str):
+    def _grant_access(self, share_name: str, access_ip: str):
         action = zaza.model.run_action_on_leader(
             'ceph-nfs',
             'grant-access',
             action_params={
                 'name': share_name,
                 'client': access_ip,
-                'mode': access_mode,
             })
         self.assertEqual(action.status, 'completed')
 
     def _mount_share(self, unit_name: str, share_ip: str, export_path: str, retry: bool = True):
+        self._install_dependencies(unit_name)
         ssh_cmd = (
             'sudo mkdir -p {0} && '
             'sudo mount -t {1} -o nfsvers=4.1,proto=tcp {2}:{3} {0}'.format(
@@ -126,17 +126,15 @@ class NfsGaneshaTest(unittest.TestCase):
     def test_create_share(self):
         logging.info("Creating a share")
         # Todo - enable ACL testing
-        # ubuntu_0_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/0'))
-        # ubuntu_1_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/1'))
-        # share = self._create_share('test_ganesha_share', access_ip=ubuntu_0_ip)
-        share = self._create_share('test_ganesha_share')
+        ubuntu_0_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/0'))
+        ubuntu_1_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/1'))
+        share = self._create_share('test_ganesha_share', access_ip=ubuntu_0_ip)
+        # share = self._create_share('test_ganesha_share')
         zaza.model.wait_for_application_states(states={
             'ubuntu': {
                 "workload-status-message-regex": "^$",
             }
         })
-        for unit in ['0', '1']:
-            self._install_dependencies('ubuntu/{}'.format(unit))
         export_path = share['path']
         ip = share['ip']
         logging.info("Mounting share on ubuntu units")
@@ -144,12 +142,13 @@ class NfsGaneshaTest(unittest.TestCase):
         logging.info("writing to the share on ubuntu/0")
         self._write_testing_file_on_instance('ubuntu/0')
         # Todo - enable ACL testing
-        # try:
-        #     self._mount_share('ubuntu/1', ip, export_path, retry=False)
-        #     self.fail('Mounting should not have succeeded')
-        # except:  # noqa: E722
-        #     pass
-        # self._grant_access('test_ganesha_share', access_ip=ubuntu_1_ip, access_mode='RW')
+        try:
+            self._mount_share('ubuntu/1', ip, export_path, retry=False)
+            self.fail('Mounting should not have succeeded')
+        except:  # noqa: E722
+            pass
+        self._grant_access('test_ganesha_share', access_ip=ubuntu_1_ip)
+
         self._mount_share('ubuntu/1', ip, export_path)
         logging.info("reading from the share on ubuntu/1")
         self._verify_testing_file_on_instance('ubuntu/1')
