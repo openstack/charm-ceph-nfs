@@ -59,6 +59,10 @@ delete-share:
         exist then this action will have no effect.
       type: string
       default:
+    purge:
+      type: boolean
+      default: False
+      description: Delete the backing CephFS share as well.
 list-shares:
   description: List all shares that this application is managing
 # TODO: Update, delete share

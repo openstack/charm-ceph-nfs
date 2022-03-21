@@ -48,6 +48,7 @@ class NfsGaneshaTest(unittest.TestCase):
                 'delete-share',
                 action_params={
                     'name': self.created_share,
+                    'purge': True
                 })
 
     def _create_share(self, name: str, size: int = 10,

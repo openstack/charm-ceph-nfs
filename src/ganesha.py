@@ -177,7 +177,7 @@ class GaneshaNfs(object):
                 logging.warning("Encountered an independently created export")
         return exports
 
-    def delete_share(self, name: str):
+    def delete_share(self, name: str, purge=False):
         share = [share for share in self.list_shares() if share.name == name]
         if share:
             share = share[0]
@@ -189,6 +189,8 @@ class GaneshaNfs(object):
         self._remove_share_from_index(share.export_id)
         logging.debug("Removing export file from RADOS")
         self._rados_rm('ganesha-export-{}'.format(share.export_id))
+        if purge:
+            self._delete_cephfs_share(name)
 
     def grant_access(self, name: str, client: str) -> Optional[str]:
         share = self.get_share(name)
@@ -247,6 +249,16 @@ class GaneshaNfs(object):
             'org.ganesha.nfsd.exportmgr.{}'.format(action)] + [*args]
         logging.debug("About to call: {}".format(cmd))
         return subprocess.check_output(cmd)
+
+    def _delete_cephfs_share(self, name: str):
+        """Delete a CephFS share.
+
+        :param name: String name of the share to create
+        """
+        self._ceph_subvolume_command(
+                'deauthorize', 'ceph-fs', name,
+                'ganesha-{name}'.format(name=name))
+        self._ceph_subvolume_command('rm', 'ceph-fs', name)
 
     def _create_cephfs_share(self, name: str, size_in_bytes: int = None):
         """Create an authorise a CephFS share.

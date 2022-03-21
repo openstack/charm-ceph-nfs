@@ -434,7 +434,8 @@ class CephNfsCharm(
             return
         client = GaneshaNfs(self.client_name, self.pool_name)
         name = event.params.get('name')
-        client.delete_share(name)
+        purge = event.params.get('purge')
+        client.delete_share(name, purge=purge)
         self.peers.trigger_reload()
         event.set_results({
             "message": "Share deleted",
