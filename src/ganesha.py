@@ -177,6 +177,10 @@ class GaneshaNfs(object):
                 logging.warning("Encountered an independently created export")
         return exports
 
+    def resize_share(self, name: str, size: int):
+        size_in_bytes = size * 1024 * 1024
+        self._ceph_subvolume_command('resize', 'ceph-fs', name, str(size_in_bytes), '--no_shrink')
+
     def delete_share(self, name: str, purge=False):
         share = [share for share in self.list_shares() if share.name == name]
         if share:

@@ -201,6 +201,9 @@ class CephNfsCharm(
             self.on.list_shares_action,
             self.list_shares_action)
         self.framework.observe(
+            self.on.resize_share_action,
+            self.resize_share_action)
+        self.framework.observe(
             self.on.delete_share_action,
             self.delete_share_action
         )
@@ -470,7 +473,18 @@ class CephNfsCharm(
             return
         self.peers.trigger_reload()
         event.set_results({
-            "message": "Acess revoked",
+            "message": "Access revoked",
+        })
+
+    def resize_share_action(self, event):
+        name = event.params.get('name')
+        size = event.params.get('size')
+        if size is None:
+            event.fail("Size must be set")
+        client = GaneshaNfs(self.client_name, self.pool_name)
+        client.resize_share(name=name, size=size)
+        event.set_results({
+            "message": f"{name} is now {size}GB",
         })
 
 

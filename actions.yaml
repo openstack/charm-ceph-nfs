@@ -34,6 +34,18 @@ grant-access:
       description: IP address or network to change access for
       type: string
       default:
+resize-share:
+  description: |
+    Resize a specified share.
+  params:
+    name:
+      description: Name of the share
+      type: string
+      default:
+    size:
+      description: What size (GB) should the share be
+      type: integer
+      default:
 
 revoke-access:
   description: |
