@@ -21,9 +21,9 @@ accessible from any machine in the 10.0.0.0-10.0.0.255 network space. To
 grant access to a new network address, the `grant-access` action should be
 used:
 
-    juju run-action --wait ceph-nfs/0 grant-access name=test-share allowed-ips=192.168.0.10 mode=r
+    juju run-action --wait ceph-nfs/0 grant-access name=test-share allowed-ips=192.168.0.10
 
-This command has granted read-only access to the named share to a specific
+This command has granted access to the named share to a specific
 address: `192.168.0.1`.
 
 It is possible to delete the created share with:
@@ -34,9 +34,10 @@ It is possible to delete the created share with:
 
 To gain high availability for NFS shares, it is necessary to scale ceph-nfs and relate it to a loadbalancer charm:
 
-    juju add-unit ceph-nfs
-    juju deploy openstack-loadbalancer loadbalancer --config vip=10.5.0.100
-    juju add-relation ceph-nfs loadbalancer
+    juju add-unit ceph-nfs -n 2
+    juju config vip=10.5.0.100
+    juju deploy hacluster
+    juju add-relation ceph-nfs hacluster
 
 Once everything settles, your shares will be accessible over the loadbalancer's vip (`10.5.0.100` in this example), and connections will load-balance across backends.
 
