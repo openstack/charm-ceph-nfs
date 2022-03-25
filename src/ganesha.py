@@ -19,16 +19,12 @@ logger = logging.getLogger(__name__)
 class Export(object):
     """Object that encodes and decodes Ganesha export blocks"""
 
-    name = None
-
     def __init__(self, export_options: Optional[Dict] = None):
         if export_options is None:
             export_options = {}
         if isinstance(export_options, Export):
             raise RuntimeError('export_options must be a dictionary')
         self.export_options = export_options
-        if self.path:
-            self.name = self.path.split('/')[-2]
         if not isinstance(self.export_options['EXPORT']['CLIENT'], list):
             self.export_options['EXPORT']['CLIENT'] = [self.export_options['EXPORT']['CLIENT']]
 
@@ -37,6 +33,11 @@ class Export(object):
 
     def to_export(self) -> str:
         return manager.mkconf(self.export_options)
+
+    @property
+    def name(self):
+        if self.path:
+            return self.path.split('/')[-2]
 
     @property
     def export(self):
@@ -91,7 +92,7 @@ class Export(object):
                     {'Access_Type': mode, 'Clients': ', '.join(clients)})
 
 
-class GaneshaNfs(object):
+class GaneshaNFS(object):
 
     export_index = "ganesha-export-index"
     export_counter = "ganesha-export-counter"

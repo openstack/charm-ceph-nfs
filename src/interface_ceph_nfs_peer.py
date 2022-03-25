@@ -26,15 +26,15 @@ class DepartedEvent(EventBase):
     pass
 
 
-class CephNfsPeerEvents(ObjectEvents):
+class CephNFSPeerEvents(ObjectEvents):
     pool_initialised = EventSource(PoolInitialisedEvent)
     reload_nonce = EventSource(ReloadNonceEvent)
     departing = EventSource(DepartedEvent)
 
 
-class CephNfsPeers(Object):
+class CephNFSPeers(Object):
 
-    on = CephNfsPeerEvents()
+    on = CephNFSPeerEvents()
     _stored = StoredState()
 
     def __init__(self, charm, relation_name):
@@ -52,7 +52,7 @@ class CephNfsPeers(Object):
             self.on_departed)
 
     def on_changed(self, event):
-        logging.info("CephNfsPeers on_changed")
+        logging.info("CephNFSPeers on_changed")
         logging.debug('pool_initialised: {}'.format(self.pool_initialised))
         if self.pool_initialised == 'True' and not self._stored.pool_initialised:
             logging.info("emiting pool initialised")
@@ -65,7 +65,7 @@ class CephNfsPeers(Object):
         self._stored.reload_nonce = self.reload_nonce
 
     def on_departed(self, event):
-        logging.warning("CephNfsPeers on_departed")
+        logging.warning("CephNFSPeers on_departed")
         if self.this_unit.name == os.getenv('JUJU_DEPARTING_UNIT'):
             self.on.departing.emit()
 

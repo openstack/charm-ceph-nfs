@@ -32,7 +32,7 @@ import interface_ceph_nfs_peer
 import interface_hacluster.ops_ha_interface as ops_ha_interface
 
 # TODO: Add the below class functionaity to action / relations
-from ganesha import GaneshaNfs
+from ganesha import GaneshaNFS
 
 import ops_openstack.adapters
 import ops_openstack.core
@@ -108,7 +108,7 @@ class CephNFSAdapters(
     }
 
 
-class CephNfsCharm(
+class CephNFSCharm(
         ops_openstack.plugins.classes.BaseCephClientCharm):
     """Ceph NFS Base Charm."""
 
@@ -157,7 +157,7 @@ class CephNfsCharm(
         self.ceph_client = ceph_client.CephClientRequires(
             self,
             'ceph-client')
-        self.peers = interface_ceph_nfs_peer.CephNfsPeers(
+        self.peers = interface_ceph_nfs_peer.CephNFSPeers(
             self,
             'cluster')
         self.ha = ops_ha_interface.HAServiceRequires(self, 'ha')
@@ -241,6 +241,10 @@ class CephNfsCharm(
     @property
     def client_name(self):
         return self.app.name
+
+    @property
+    def ganesha_client(self):
+        GaneshaNFS(self.client_name, self.pool_name)
 
     def request_ceph_pool(self, event):
         """Request pools from Ceph cluster."""
@@ -413,8 +417,7 @@ class CephNfsCharm(
         name = event.params.get('name')
         allowed_ips = event.params.get('allowed-ips')
         allowed_ips = [ip.strip() for ip in allowed_ips.split(',')]
-        client = GaneshaNfs(self.client_name, self.pool_name)
-        export_path = client.create_share(size=share_size, name=name, access_ips=allowed_ips)
+        export_path = self.ganesha_client.create_share(size=share_size, name=name, access_ips=allowed_ips)
         if not export_path:
             event.fail("Failed to create share, check the log for more details")
             return
@@ -425,8 +428,7 @@ class CephNfsCharm(
             "ip": self.access_address()})
 
     def list_shares_action(self, event):
-        client = GaneshaNfs(self.client_name, self.pool_name)
-        exports = client.list_shares()
+        exports = self.ganesha_client.list_shares()
         event.set_results({
             "exports": [{"id": export.export_id, "name": export.name} for export in exports]
         })
@@ -435,10 +437,9 @@ class CephNfsCharm(
         if not self.model.unit.is_leader():
             event.fail("Share creation needs to be run from the application leader")
             return
-        client = GaneshaNfs(self.client_name, self.pool_name)
         name = event.params.get('name')
         purge = event.params.get('purge')
-        client.delete_share(name, purge=purge)
+        self.ganesha_client.delete_share(name, purge=purge)
         self.peers.trigger_reload()
         event.set_results({
             "message": "Share deleted",
@@ -448,10 +449,9 @@ class CephNfsCharm(
         if not self.model.unit.is_leader():
             event.fail("Share creation needs to be run from the application leader")
             return
-        client = GaneshaNfs(self.client_name, self.pool_name)
         name = event.params.get('name')
         address = event.params.get('client')
-        res = client.grant_access(name, address)
+        res = self.ganesha_client.grant_access(name, address)
         if res is not None:
             event.fail(res)
             return
@@ -464,10 +464,9 @@ class CephNfsCharm(
         if not self.model.unit.is_leader():
             event.fail("Share creation needs to be run from the application leader")
             return
-        client = GaneshaNfs(self.client_name, self.pool_name)
         name = event.params.get('name')
         address = event.params.get('client')
-        res = client.revoke_access(name, address)
+        res = self.ganesha_client.revoke_access(name, address)
         if res is not None:
             event.fail(res)
             return
@@ -481,15 +480,14 @@ class CephNfsCharm(
         size = event.params.get('size')
         if size is None:
             event.fail("Size must be set")
-        client = GaneshaNfs(self.client_name, self.pool_name)
-        client.resize_share(name=name, size=size)
+        self.ganesha_client.resize_share(name=name, size=size)
         event.set_results({
             "message": f"{name} is now {size}GB",
         })
 
 
 @ops_openstack.core.charm_class
-class CephNFSCharmPacific(CephNfsCharm):
+class CephNFSCharmPacific(CephNFSCharm):
     """Ceph iSCSI Charm for Pacific."""
 
     _stored = StoredState()
