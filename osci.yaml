@@ -12,6 +12,7 @@
     name: focal-pacific
     parent: func-target
     dependencies:
+      charm-build
       - osci-lint
       - tox-py35
       - tox-py36
@@ -19,3 +20,15 @@
       - tox-py38
     vars:
       tox_extra_args: focal-pacific
+- job:
+    name: focal-quincy
+    parent: func-target
+    dependencies:
+      - charm-build
+      - osci-lint
+      - tox-py35
+      - tox-py36
+      - tox-py37
+      - tox-py38
+    vars:
+      tox_extra_args: focal-quincy
