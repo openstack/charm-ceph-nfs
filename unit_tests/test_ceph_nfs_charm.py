@@ -12,7 +12,7 @@ sys.path.append('src')  # noqa
 
 from unittest.mock import patch, Mock
 
-from charm import CephNfsCharm
+from charm import CephNFSCharm
 # from ops.model import ActiveStatus
 from ops.testing import Harness
 
@@ -40,7 +40,7 @@ class CharmTestCase(unittest.TestCase):
             setattr(self, method, self.patch(method))
 
 
-class _CephNfsCharm(CephNfsCharm):
+class _CephNFSCharm(CephNFSCharm):
 
     @staticmethod
     def get_bluestore_compression():
@@ -58,7 +58,7 @@ class TestCephNFSCharmBase(CharmTestCase):
     def setUp(self):
         super().setUp(charm, self.PATCHES)
         self.harness = Harness(
-            _CephNfsCharm,
+            _CephNFSCharm,
         )
         self.addCleanup(self.harness.cleanup)
 

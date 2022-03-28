@@ -417,7 +417,8 @@ class CephNFSCharm(
         name = event.params.get('name')
         allowed_ips = event.params.get('allowed-ips')
         allowed_ips = [ip.strip() for ip in allowed_ips.split(',')]
-        export_path = self.ganesha_client.create_share(size=share_size, name=name, access_ips=allowed_ips)
+        export_path = self.ganesha_client.create_share(
+            size=share_size, name=name, access_ips=allowed_ips)
         if not export_path:
             event.fail("Failed to create share, check the log for more details")
             return

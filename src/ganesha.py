@@ -93,7 +93,6 @@ class Export(object):
 
 
 class GaneshaNFS(object):
-
     export_index = "ganesha-export-index"
     export_counter = "ganesha-export-counter"
 
@@ -261,8 +260,8 @@ class GaneshaNFS(object):
         :param name: String name of the share to create
         """
         self._ceph_subvolume_command(
-                'deauthorize', 'ceph-fs', name,
-                'ganesha-{name}'.format(name=name))
+            'deauthorize', 'ceph-fs', name,
+            'ganesha-{name}'.format(name=name))
         self._ceph_subvolume_command('rm', 'ceph-fs', name)
 
     def _create_cephfs_share(self, name: str, size_in_bytes: int = None):

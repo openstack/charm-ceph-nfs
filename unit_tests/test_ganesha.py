@@ -43,35 +43,36 @@ class ExportTest(unittest.TestCase):
 
     def test_add_client(self):
         export = ganesha.Export.from_export(EXAMPLE_EXPORT)
-        export.add_client('10.0.0.0/8', 'rw')
+        export.add_client('10.0.0.0/8')
         self.assertEqual(
             export.clients,
             [{'Access_Type': 'rw', 'Clients': '0.0.0.0, 10.0.0.0/8'}])
         # adding again shouldn't duplicate export
-        export.add_client('10.0.0.0/8', 'rw')
+        export.add_client('10.0.0.0/8')
         self.assertEqual(
             export.clients,
             [{'Access_Type': 'rw', 'Clients': '0.0.0.0, 10.0.0.0/8'}])
 
-        export.add_client('192.168.0.0/16', 'r')
+        export.add_client('192.168.0.0/16')
         self.assertEqual(
             export.clients,
-            [{'Access_Type': 'r', 'Clients': '192.168.0.0/16'},
-             {'Access_Type': 'rw', 'Clients': '0.0.0.0, 10.0.0.0/8'},
-             ])
+            [{
+                'Access_Type': 'rw', 'Clients': '0.0.0.0, 10.0.0.0/8, 192.168.0.0/16'
+            }])
 
     def test_remove_client(self):
         export = ganesha.Export.from_export(EXAMPLE_EXPORT)
-        export.add_client('10.0.0.0/8', 'rw')
-        export.add_client('192.168.0.0/16', 'r')
+        export.add_client('10.0.0.0/8')
+        export.add_client('192.168.0.0/16')
         self.assertEqual(
             export.clients,
-            [{'Access_Type': 'r', 'Clients': '192.168.0.0/16'},
-             {'Access_Type': 'rw', 'Clients': '0.0.0.0, 10.0.0.0/8'},
-             ])
+            [{
+                'Access_Type': 'rw',
+                'Clients': '0.0.0.0, 10.0.0.0/8, 192.168.0.0/16'
+            }])
         export.remove_client('0.0.0.0')
         self.assertEqual(
             export.clients,
-            [{'Access_Type': 'r', 'Clients': '192.168.0.0/16'},
-             {'Access_Type': 'rw', 'Clients': '10.0.0.0/8'},
-             ])
+            [
+                {'Access_Type': 'rw', 'Clients': '10.0.0.0/8, 192.168.0.0/16'},
+            ])

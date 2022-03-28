@@ -17,7 +17,6 @@
 import logging
 import subprocess
 import tenacity
-import time
 from typing import Dict
 import unittest
 import yaml
