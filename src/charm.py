@@ -244,7 +244,7 @@ class CephNFSCharm(
 
     @property
     def ganesha_client(self):
-        GaneshaNFS(self.client_name, self.pool_name)
+        return GaneshaNFS(self.client_name, self.pool_name)
 
     def request_ceph_pool(self, event):
         """Request pools from Ceph cluster."""

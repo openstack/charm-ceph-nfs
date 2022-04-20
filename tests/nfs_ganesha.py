@@ -111,7 +111,7 @@ class NfsGaneshaTest(unittest.TestCase):
     def _write_testing_file_on_instance(self, instance_name: str):
         zaza.utilities.generic.run_via_ssh(
             unit_name=instance_name,
-            cmd='echo "test" | sudo tee {}/test'.format(self.mount_dir))
+            cmd='echo -n "test" | sudo tee {}/test'.format(self.mount_dir))
 
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(5),
@@ -121,7 +121,7 @@ class NfsGaneshaTest(unittest.TestCase):
         output = run_with_juju_ssh(
             'sudo cat {}/test'.format(self.mount_dir))
         logging.info("Verification output: {}".format(output))
-        self.assertEqual('test\r\n', output)
+        self.assertEqual('test', output.strip())
 
     def test_create_share(self):
         logging.info("Creating a share")
