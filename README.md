@@ -43,10 +43,15 @@ Once everything settles, your shares will be accessible over the loadbalancer's 
 
 ## Relations
 
-TODO: Provide any relations which are provided or required by your charm
+Ceph-NFS consumes the ceph-client relation from the ceph-mon charm.
 
-## Contributing
+# Bugs
 
-Please see the [Juju SDK docs](https://juju.is/docs/sdk) for guidelines 
-on enhancements to this charm following best practice guidelines, and
-`CONTRIBUTING.md` for developer guidance.
+Please report bugs on [Launchpad][lp-bugs-charm-ceph-fs].
+
+For general charm questions refer to the OpenStack [Charm Guide][cg].
+
+<!-- LINKS -->
+
+[lp-bugs-charm-ceph-fs]: https://bugs.launchpad.net/charm-ceph-fs/+filebug
+[cg]: https://docs.openstack.org/charm-guide
