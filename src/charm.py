@@ -88,7 +88,9 @@ class CephNFSContext(object):
         :returns: Data pool name.
         :rtype: str
         """
-        return self.charm_instance.config_get('rbd-pool-name', self.charm_instance.app.name)
+        return self.charm_instance.config_get(
+            'rbd-pool-name', self.charm_instance.app.name
+        )
 
     @property
     def client_name(self):
@@ -293,7 +295,8 @@ class CephNFSCharm(
             mode=0o750)
 
         def daemon_reload_and_restart(service_name):
-            logging.debug("restarting {} after config change".format(service_name))
+            logging.debug("restarting {} after config change"
+                          .format(service_name))
             subprocess.check_call(['systemctl', 'daemon-reload'])
             subprocess.check_call(['systemctl', 'restart', service_name])
 
@@ -411,7 +414,8 @@ class CephNFSCharm(
 
     def create_share_action(self, event):
         if not self.model.unit.is_leader():
-            event.fail("Share creation needs to be run from the application leader")
+            event.fail("Share creation needs to be run "
+                       "from the application leader")
             return
         share_size = event.params.get('size')
         name = event.params.get('name')
@@ -420,7 +424,8 @@ class CephNFSCharm(
         export_path = self.ganesha_client.create_share(
             size=share_size, name=name, access_ips=allowed_ips)
         if not export_path:
-            event.fail("Failed to create share, check the log for more details")
+            event.fail("Failed to create share, check the "
+                       "log for more details")
             return
         self.peers.trigger_reload()
         event.set_results({
@@ -431,12 +436,17 @@ class CephNFSCharm(
     def list_shares_action(self, event):
         exports = self.ganesha_client.list_shares()
         event.set_results({
-            "exports": [{"id": export.export_id, "name": export.name} for export in exports]
+            "exports": [
+                {
+                    "id": export.export_id, "name": export.name
+                } for export in exports
+            ]
         })
 
     def delete_share_action(self, event):
         if not self.model.unit.is_leader():
-            event.fail("Share creation needs to be run from the application leader")
+            event.fail("Share creation needs to be run "
+                       "from the application leader")
             return
         name = event.params.get('name')
         purge = event.params.get('purge')
@@ -448,7 +458,8 @@ class CephNFSCharm(
 
     def grant_access_action(self, event):
         if not self.model.unit.is_leader():
-            event.fail("Share creation needs to be run from the application leader")
+            event.fail("Share creation needs to be run "
+                       "from the application leader")
             return
         name = event.params.get('name')
         address = event.params.get('client')
@@ -463,7 +474,8 @@ class CephNFSCharm(
 
     def revoke_access_action(self, event):
         if not self.model.unit.is_leader():
-            event.fail("Share creation needs to be run from the application leader")
+            event.fail("Share creation needs to be run "
+                       "from the application leader")
             return
         name = event.params.get('name')
         address = event.params.get('client')

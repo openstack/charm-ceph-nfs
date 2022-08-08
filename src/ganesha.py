@@ -26,7 +26,9 @@ class Export(object):
             raise RuntimeError('export_options must be a dictionary')
         self.export_options = export_options
         if not isinstance(self.export_options['EXPORT']['CLIENT'], list):
-            self.export_options['EXPORT']['CLIENT'] = [self.export_options['EXPORT']['CLIENT']]
+            self.export_options['EXPORT']['CLIENT'] = [
+                self.export_options['EXPORT']['CLIENT']
+            ]
 
     def from_export(export: str) -> 'Export':
         return Export(export_options=manager.parseconf(export))
@@ -52,9 +54,13 @@ class Export(object):
         clients_by_mode = {'r': [], 'rw': []}
         for client in self.clients:
             if client['Access_Type'].lower() == 'r':
-                clients_by_mode['r'] += [s.strip() for s in client['Clients'].split(',')]
+                clients_by_mode['r'] += [
+                    s.strip() for s in client['Clients'].split(',')
+                ]
             elif client['Access_Type'].lower() == 'rw':
-                clients_by_mode['rw'] += [s.strip() for s in client['Clients'].split(',')]
+                clients_by_mode['rw'] += [
+                    s.strip() for s in client['Clients'].split(',')
+                ]
             else:
                 raise RuntimeError("Invalid access type")
         return clients_by_mode
@@ -84,7 +90,9 @@ class Export(object):
     def remove_client(self, client: str):
         clients_by_mode = self.clients_by_mode
         for (mode, clients) in clients_by_mode.items():
-            clients_by_mode[mode] = [old_client for old_client in clients if old_client != client]
+            clients_by_mode[mode] = [
+                old_client for old_client in clients if old_client != client
+            ]
         self.export_options['EXPORT']['CLIENT'] = []
         for (mode, clients) in clients_by_mode.items():
             if clients:
@@ -112,7 +120,9 @@ class GaneshaNFS(object):
         if name is None:
             name = str(uuid.uuid4())
         else:
-            existing_shares = [share for share in self.list_shares() if share.name == name]
+            existing_shares = [
+                share for share in self.list_shares() if share.name == name
+            ]
             if existing_shares:
                 return existing_shares[0].path
         if size is not None:
@@ -179,7 +189,8 @@ class GaneshaNFS(object):
 
     def resize_share(self, name: str, size: int):
         size_in_bytes = size * 1024 * 1024
-        self._ceph_subvolume_command('resize', 'ceph-fs', name, str(size_in_bytes), '--no_shrink')
+        self._ceph_subvolume_command('resize', 'ceph-fs', name,
+                                     str(size_in_bytes), '--no_shrink')
 
     def delete_share(self, name: str, purge=False):
         share = [share for share in self.list_shares() if share.name == name]
@@ -187,7 +198,8 @@ class GaneshaNFS(object):
             share = share[0]
         else:
             return
-        logging.info("About to remove export {} ({})".format(share.name, share.export_id))
+        logging.info("About to remove export {} ({})"
+                     .format(share.name, share.export_id))
         self._ganesha_remove_export(share.export_id)
         logging.debug("Removing export from index")
         self._remove_share_from_index(share.export_id)
@@ -204,7 +216,8 @@ class GaneshaNFS(object):
         export_template = share.to_export()
         logging.debug("Export template::\n{}".format(export_template))
         tmp_file = self._tmpfile(export_template)
-        self._rados_put('ganesha-export-{}'.format(share.export_id), tmp_file.name)
+        self._rados_put('ganesha-export-{}'.format(share.export_id),
+                        tmp_file.name)
         self._ganesha_update_export(share.export_id, tmp_file.name)
 
     def revoke_access(self, name: str, client: str):
@@ -215,7 +228,8 @@ class GaneshaNFS(object):
         export_template = share.to_export()
         logging.debug("Export template::\n{}".format(export_template))
         tmp_file = self._tmpfile(export_template)
-        self._rados_put('ganesha-export-{}'.format(share.export_id), tmp_file.name)
+        self._rados_put('ganesha-export-{}'.format(share.export_id),
+                        tmp_file.name)
         self._ganesha_update_export(share.export_id, tmp_file.name)
 
     def get_share(self, name: str) -> Optional[Export]:
@@ -230,7 +244,8 @@ class GaneshaNFS(object):
         """Add a configured NFS export to Ganesha"""
         self._dbus_send(
             'ExportMgr', 'AddExport',
-            'string:{}'.format(tmp_path), 'string:EXPORT(Path={})'.format(export_path))
+            'string:{}'.format(tmp_path),
+            'string:EXPORT(Path={})'.format(export_path))
 
     def _ganesha_remove_export(self, share_id: int):
         """Remove a configured NFS export from Ganesha"""
@@ -243,12 +258,14 @@ class GaneshaNFS(object):
         """Update a configured NFS export in Ganesha"""
         self._dbus_send(
             'ExportMgr', 'UpdateExport',
-            'string:{}'.format(tmp_path), 'string:EXPORT(Export_Id={})'.format(share_id))
+            'string:{}'.format(tmp_path),
+            'string:EXPORT(Export_Id={})'.format(share_id))
 
     def _dbus_send(self, section: str, action: str, *args):
         """Send a command to Ganesha via Dbus"""
         cmd = [
-            'dbus-send', '--print-reply', '--system', '--dest=org.ganesha.nfsd',
+            'dbus-send', '--print-reply', '--system',
+            '--dest=org.ganesha.nfsd',
             '/org/ganesha/nfsd/{}'.format(section),
             'org.ganesha.nfsd.exportmgr.{}'.format(action)] + [*args]
         logging.debug("About to call: {}".format(cmd))
@@ -275,7 +292,8 @@ class GaneshaNFS(object):
         """
         try:
             if size_in_bytes is not None:
-                self._ceph_subvolume_command('create', 'ceph-fs', name, str(size_in_bytes))
+                self._ceph_subvolume_command('create', 'ceph-fs',
+                                             name, str(size_in_bytes))
             else:
                 self._ceph_subvolume_command('create', 'ceph-fs', name)
         except subprocess.CalledProcessError:
@@ -297,7 +315,9 @@ class GaneshaNFS(object):
             logging.error("failed to get path")
             return False
 
-    def _ceph_subvolume_command(self, *cmd: List[str]) -> subprocess.CompletedProcess:
+    def _ceph_subvolume_command(
+        self, *cmd: List[str]
+    ) -> subprocess.CompletedProcess:
         """Run a ceph fs subvolume command"""
         return self._ceph_fs_command('subvolume', *cmd)
 
@@ -317,7 +337,10 @@ class GaneshaNFS(object):
 
     def _ceph_command(self, *cmd: List[str]) -> subprocess.CompletedProcess:
         """Run a ceph command"""
-        cmd = ["ceph", "--id", self.client_name, "--conf=/etc/ceph/ceph.conf"] + [*cmd]
+        cmd = [
+            "ceph", "--id", self.client_name,
+            "--conf=/etc/ceph/ceph.conf"
+        ] + [*cmd]
         return subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
 
     def _get_next_export_id(self) -> int:
@@ -386,7 +409,9 @@ class GaneshaNFS(object):
     def _add_share_to_index(self, export_id: int):
         """Add an export RADOS object's URL to the RADOS URL index."""
         index_data = self._rados_get(self.export_index)
-        url = '%url rados://{}/ganesha-export-{}'.format(self.ceph_pool, export_id)
+        url = '%url rados://{}/ganesha-export-{}'.format(
+            self.ceph_pool, export_id
+        )
         rados_urls = index_data.split('\n')
         if url not in rados_urls:
             rados_urls.append(url)

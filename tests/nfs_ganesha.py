@@ -76,7 +76,8 @@ class NfsGaneshaTest(unittest.TestCase):
             })
         self.assertEqual(action.status, 'completed')
 
-    def _mount_share(self, unit_name: str, share_ip: str, export_path: str, retry: bool = True):
+    def _mount_share(self, unit_name: str, share_ip: str,
+                     export_path: str, retry: bool = True):
         self._install_dependencies(unit_name)
         ssh_cmd = (
             'sudo mkdir -p {0} && '
@@ -88,7 +89,8 @@ class NfsGaneshaTest(unittest.TestCase):
         if retry:
             for attempt in tenacity.Retrying(
                     stop=tenacity.stop_after_attempt(5),
-                    wait=tenacity.wait_exponential(multiplier=3, min=2, max=10)):
+                    wait=tenacity.wait_exponential(multiplier=3,
+                                                   min=2, max=10)):
                 with attempt:
                     zaza.utilities.generic.run_via_ssh(
                         unit_name=unit_name,
@@ -117,7 +119,9 @@ class NfsGaneshaTest(unittest.TestCase):
         stop=tenacity.stop_after_attempt(5),
         wait=tenacity.wait_exponential(multiplier=3, min=2, max=10))
     def _verify_testing_file_on_instance(self, instance_name: str):
-        run_with_juju_ssh = zaza.utilities.installers.make_juju_ssh_fn('ubuntu/1', sudo=True)
+        run_with_juju_ssh = zaza.utilities.installers.make_juju_ssh_fn(
+            'ubuntu/1', sudo=True
+        )
         output = run_with_juju_ssh(
             'sudo cat {}/test'.format(self.mount_dir))
         logging.info("Verification output: {}".format(output))
@@ -126,8 +130,12 @@ class NfsGaneshaTest(unittest.TestCase):
     def test_create_share(self):
         logging.info("Creating a share")
         # Todo - enable ACL testing
-        ubuntu_0_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/0'))
-        ubuntu_1_ip = zaza.model.get_unit_public_address(zaza.model.get_unit_from_name('ubuntu/1'))
+        ubuntu_0_ip = zaza.model.get_unit_public_address(
+            zaza.model.get_unit_from_name('ubuntu/0')
+        )
+        ubuntu_1_ip = zaza.model.get_unit_public_address(
+            zaza.model.get_unit_from_name('ubuntu/1')
+        )
         share = self._create_share('test_ganesha_share', access_ip=ubuntu_0_ip)
         # share = self._create_share('test_ganesha_share')
         zaza.model.wait_for_application_states(states={
@@ -164,4 +172,5 @@ class NfsGaneshaTest(unittest.TestCase):
         logging.debug("Action results: {}".format(results))
         logging.debug("exports: {}".format(results['exports']))
         exports = yaml.safe_load(results['exports'])
-        self.assertIn('test_ganesha_list_share', [export['name'] for export in exports])
+        self.assertIn('test_ganesha_list_share',
+                      [export['name'] for export in exports])

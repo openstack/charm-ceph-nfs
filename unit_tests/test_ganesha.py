@@ -9,7 +9,7 @@ EXPORT {
 
     # The directory in the exported file system this export
     # is rooted on.
-    Path = '/volumes/_nogroup/test_ganesha_share/e12a49ef-1b2b-40b3-ba6c-7e6695bcc950';
+    Path = '/volumes/_nogroup/test_ganesha_share/e12a49ef-1b2b-40b3-ba6c';
 
     # FSAL, Ganesha's module component
     FSAL {
@@ -20,7 +20,7 @@ EXPORT {
     }
 
     # Path of export in the NFSv4 pseudo filesystem
-    Pseudo = '/volumes/_nogroup/test_ganesha_share/e12a49ef-1b2b-40b3-ba6c-7e6695bcc950';
+    Pseudo = '/volumes/_nogroup/test_ganesha_share/e12a49ef-1b2b-40b3-ba6c';
 
     SecType = "sys";
     CLIENT {
@@ -38,7 +38,8 @@ class ExportTest(unittest.TestCase):
     def test_parser(self):
         export = ganesha.Export.from_export(EXAMPLE_EXPORT)
         self.assertEqual(export.export_id, 1000)
-        self.assertEqual(export.clients, [{'Access_Type': 'rw', 'Clients': '0.0.0.0'}])
+        self.assertEqual(export.clients,
+                         [{'Access_Type': 'rw', 'Clients': '0.0.0.0'}])
         self.assertEqual(export.name, 'test_ganesha_share')
 
     def test_add_client(self):
@@ -57,7 +58,8 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(
             export.clients,
             [{
-                'Access_Type': 'rw', 'Clients': '0.0.0.0, 10.0.0.0/8, 192.168.0.0/16'
+                'Access_Type': 'rw',
+                'Clients': '0.0.0.0, 10.0.0.0/8, 192.168.0.0/16'
             }])
 
     def test_remove_client(self):

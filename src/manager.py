@@ -94,8 +94,8 @@ def _conf2json(conf):
                 word = ":"
             elif word == ";":
                 word = ','
-            elif (word in ['{', '}'] or
-                  re.search(r'\A-?[1-9]\d*(\.\d+)?\Z', word)):
+            elif word in ['{', '}'] or  \
+                    re.search(r'\A-?[1-9]\d*(\.\d+)?\Z', word):
                 pass
             else:
                 word = json.dumps(word)

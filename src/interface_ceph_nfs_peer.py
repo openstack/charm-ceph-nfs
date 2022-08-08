@@ -54,7 +54,8 @@ class CephNFSPeers(Object):
     def on_changed(self, event):
         logging.info("CephNFSPeers on_changed")
         logging.debug('pool_initialised: {}'.format(self.pool_initialised))
-        if self.pool_initialised == 'True' and not self._stored.pool_initialised:
+        if self.pool_initialised == 'True' and  \
+           not self._stored.pool_initialised:
             logging.info("emiting pool initialised")
             self.on.pool_initialised.emit()
             self._stored.pool_initialised = True
@@ -75,7 +76,9 @@ class CephNFSPeers(Object):
         self.on.pool_initialised.emit()
 
     def trigger_reload(self):
-        self.peer_rel.data[self.peer_rel.app]['reload_nonce'] = str(uuid.uuid4())
+        self.peer_rel.data[
+            self.peer_rel.app
+        ]['reload_nonce'] = str(uuid.uuid4())
         self.on.reload_nonce.emit()
 
     @property
