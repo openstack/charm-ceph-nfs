@@ -2,6 +2,7 @@ charm_name: ceph-nfs
 gate_bundles:
   - focal-quincy
   - focal-pacific
+  - jammy-pacific
 smoke_bundles:
   - focal-pacific
 configure: []
