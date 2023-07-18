@@ -7,12 +7,13 @@
       - focal-pacific
       - focal-quincy
       - jammy-quincy
-      - kinetic-quincy
       - lunar-quincy
+      - mantic-quincy
     vars:
       needs_charm_build: true
       charm_build_name: ceph-nfs
       build_type: charmcraft
+      charmcraft_channel: 2.x/stable
 - job:
     name: focal-pacific
     parent: func-target
@@ -41,13 +42,6 @@
     vars:
       tox_extra_args: -- jammy-quincy
 - job:
-    name: kinetic-quincy
-    parent: func-target
-    dependencies:
-      - focal-quincy
-    vars:
-      tox_extra_args: -- kinetic-quincy
-- job:
     name: lunar-quincy
     parent: func-target
     voting: false
@@ -55,4 +49,11 @@
       - focal-quincy
     vars:
       tox_extra_args: -- lunar-quincy
-    
+- job:
+    name: mantic-quincy
+    parent: func-target
+    voting: false
+    dependencies:
+      - focal-quincy
+    vars:
+      tox_extra_args: -- mantic-quincy
