@@ -4,6 +4,7 @@ maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
 description: |
   The NFS gateway is provided by NFS-Ganesha and provides NFS shares
   that are backed by CephFS.
+docs: https://discourse.charmhub.io/t/ceph-nfs-docs-index/11224
 tags:
   - storage
   - misc
