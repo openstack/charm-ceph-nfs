@@ -1,5 +1,6 @@
 local_overlay_enabled: False
-series: jammy
+series: mantic
+jammy
 applications:
   ubuntu:
     charm: cs:ubuntu
@@ -11,7 +12,7 @@ applications:
       source: distro
   ceph-osd:
     charm: ch:ceph-osd
-    channel: quincy/edge
+    channel: latest/edge
     num_units: 3
     storage:
       osd-devices: '2,10G'
@@ -19,7 +20,7 @@ applications:
       source: distro
   ceph-mon:
     charm: ch:ceph-mon
-    channel: quincy/edge
+    channel: latest/edge
     num_units: 3
     options:
       monitor-count: '3'
@@ -27,7 +28,7 @@ applications:
       source: distro
   ceph-fs:
     charm: ch:ceph-fs
-    channel: quincy/edge
+    channel: latest/edge
     num_units: 2
     options:
       source: distro
