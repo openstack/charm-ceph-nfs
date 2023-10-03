@@ -101,8 +101,53 @@ class CephNFSContext(object):
         return socket.gethostname()
 
 
-class CephNFSAdapters(
+class OpenStackContextAdapters(
         ops_openstack.adapters.OpenStackRelationAdapters):
+    """
+    Augmentation of OpenStackRelationAdapters that also includes contexts.
+    Proposed for upstreaming
+    https://review.opendev.org/c/openstack/charm-ops-openstack/+/897238
+    """
+
+    relation_adapters = {}
+
+    def __init__(self, relations, charm_instance,
+                 options_instance=None, contexts=None):
+        """
+        :param relations: List of instances of relation classes
+        :param options: Configuration class to use (DEPRECATED)
+        :param options_instance: Instance of Configuration class to use
+        :param charm_instance: optional charm_instance that is captured as a
+            weakref for use on the adapter.
+        :param contexts: Optional list of contexts
+        """
+        super().__init__(
+            relations, charm_instance,
+            options_instance=options_instance
+        )
+        if contexts is None:
+            contexts = ()
+        self._contexts = set()
+        for context in contexts:
+            self.add_context(context)
+
+    def __iter__(self):
+        """
+        Iterate over the relations and contexts presented to the charm.
+        """
+        for ref in self._relations.union(self._contexts):
+            yield ref, getattr(self, ref)
+
+    def add_context(self, context):
+        """Add the context to this adapters instance.
+
+        :param relation: a RAW context
+        """
+        setattr(self, context.name, context)
+        self._contexts.add(context.name)
+
+
+class CephNFSAdapters(OpenStackContextAdapters):
     """Collection of relation adapters."""
 
     relation_adapters = {

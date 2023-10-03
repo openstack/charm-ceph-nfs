@@ -2,7 +2,8 @@ charm_name: ceph-nfs
 gate_bundles:
   - focal-quincy
   - focal-pacific
-  - jammy-pacific
+  - jammy-quincy
+  - jammy-reef
   - mantic-quincy
 smoke_bundles:
   - focal-pacific

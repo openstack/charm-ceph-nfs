@@ -7,6 +7,7 @@
       - focal-pacific
       - focal-quincy
       - jammy-quincy
+      - jammy-reef
       - lunar-quincy
       - mantic-quincy
     vars:
@@ -41,6 +42,13 @@
       - focal-quincy
     vars:
       tox_extra_args: -- jammy-quincy
+- job:
+    name: jammy-reef
+    parent: func-target
+    dependencies:
+      - focal-quincy
+    vars:
+      tox_extra_args: -- jammy-reef
 - job:
     name: lunar-quincy
     parent: func-target
