@@ -51,6 +51,8 @@ Please report bugs on [Launchpad][lp-bugs-charm-ceph-fs].
 
 For general charm questions refer to the OpenStack [Charm Guide][cg].
 
+Note that starting with the squid track of the ceph-nfs charm, deployment of Ceph Pacific and older clusters is not supported anymore. 
+
 <!-- LINKS -->
 
 [lp-bugs-charm-ceph-fs]: https://bugs.launchpad.net/charm-ceph-fs/+filebug
