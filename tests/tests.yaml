@@ -1,12 +1,8 @@
 charm_name: ceph-nfs
 gate_bundles:
-  - focal-quincy
-  - focal-pacific
-  - jammy-quincy
-  - jammy-reef
-  - jammy-squid
+  - noble-caracal
 smoke_bundles:
-  - focal-pacific
+  - noble-caracal
 configure: []
 tests:
   - tests.nfs_ganesha.NfsGaneshaTest
